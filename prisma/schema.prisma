@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ------------------------------------------------------
+// Core Multi-Tenancy & Subscriptions
+// ------------------------------------------------------
+
+model Tenant {
+  id               String       @id @default(uuid())
+  name             String
+  domain           String?      @unique // For custom subdomains (e.g., school.yourappp.com)
+  plan             String       @default("BASIC") // SQLite doesn't support enums, using String
+  subscriptionId   String?      // Stripe/Payment provider subscription ID
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relationships
+  users            User[]
+  students         Student[]
+  documents        Document[]
+  timetables       Timetable[]
+  courseRequirements CourseRequirement[]
+  classrooms       Classroom[]
+  rooms            Room[]
+  notificationQueues NotificationQueue[]
+  classTeacherAssignments ClassTeacherAssignment[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  email          String    @unique
+  hashedPassword String
+  role           String    // e.g., SYSTEM_ADMIN, SCHOOL_ADMIN, TEACHER, PARENT, STUDENT
+  createdAt      DateTime  @default(now())
+
+  // Specific profiles based on role
+  teacherProfile TeacherProfile?
+  parentProfile  ParentProfile?
+
+  @@index([tenantId])
+}
+
+// ------------------------------------------------------
+// Basic Plan: Core Management & Attendance
+// ------------------------------------------------------
+
+model Student {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  firstName      String
+  lastName       String
+  grade          String    @default("Year 1") // Added for grouping
+  section        String    @default("Sec A")  // Added for grouping
+  enrollmentDate DateTime
+  isHosteler     Boolean   @default(false)
+  hostelName     String?   // E.g., "Boys Hostel"
+  roomNumber     String?   // E.g., "101"
+  rollNumber     String?   // Added for tracking and searching
+  parentPhone    String?   // Added for contacting parents
+  
+  // Advance Plan relations
+  parentId       String?
+  parent         ParentProfile? @relation(fields: [parentId], references: [id])
+  
+  attendance     Attendance[]
+  marks          Mark[]
+  documents      Document[]
+  notificationQueues NotificationQueue[]
+
+  @@index([tenantId])
+}
+
+model Room {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  hostelName String   // e.g. "Boys Hostel"
+  roomNumber String   // e.g. "101"
+  capacity   Int
+  
+  @@unique([tenantId, hostelName, roomNumber])
+  @@index([tenantId])
+}
+
+model Attendance {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  date        DateTime
+  sessionName String   @default("Morning (8-12)")
+  status      String   // e.g., PRESENT, ABSENT, LATE
+  recordedBy  String   // User ID of the teacher
+  
+  @@index([studentId])
+}
+
+// ------------------------------------------------------
+// Advance Plan: Records & Documents
+// ------------------------------------------------------
+
+model Mark {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  subject     String
+  score       Float
+  maxScore    Float
+  examName    String
+  examCategory String @default("Custom")
+  syllabusCoverage String?
+  recordedAt  DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  studentId   String?  // Optional, if tied to a specific student
+  student     Student? @relation(fields: [studentId], references: [id])
+  title       String
+  fileUrl     String   // S3/Cloud Storage key or URL
+  uploadedBy  String   // User ID
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model ParentProfile {
+  id       String    @id // Maps to User.id
+  user     User      @relation(fields: [id], references: [id])
+  students Student[] // A parent can have multiple students
+}
+
+model TeacherProfile {
+  id       String    @id // Maps to User.id
+  user     User      @relation(fields: [id], references: [id])
+  subject  String?
+  classAssignments ClassTeacherAssignment[]
+  timetables       Timetable[]
+  courseRequirements CourseRequirement[]
+}
+
+model ClassTeacherAssignment {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  grade      String
+  section    String
+  teacherId  String
+  teacher    TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  @@unique([tenantId, grade, section])
+  @@index([tenantId])
+}
+
+// ------------------------------------------------------
+// Pro Plan: Timetables & Exams Infrastructure
+// ------------------------------------------------------
+
+model Timetable {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  grade       String
+  section     String
+  
+  dayOfWeek   Int      // 1-7 (1 = Monday)
+  startTime   String   // e.g., "09:00"
+  endTime     String   // e.g., "10:00"
+  
+  subject     String
+  teacherId   String   // ID of TeacherProfile
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
+  
+  roomId      String?
+  room        Classroom? @relation(fields: [roomId], references: [id])
+
+  @@index([tenantId])
+  @@index([grade, section])
+}
+
+model CourseRequirement {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  
+  grade            String
+  section          String
+  subject          String
+  
+  periodsPerWeek   Int
+  teacherId        String
+  teacher          TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  @@unique([tenantId, grade, section, subject])
+  @@index([tenantId])
+}
+
+model Classroom {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String   // e.g., "Lab 1", "Room 101"
+  capacity    Int      @default(30)
+  
+  timetables  Timetable[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// ------------------------------------------------------
+// Background Tasks & Notifications
+// ------------------------------------------------------
+
+model NotificationQueue {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  date        DateTime // The date of the attendance record
+  sessionName String   // The session of the attendance record
+  message     String
+  sendAfter   DateTime // When it should be sent
+  status      String   @default("PENDING") // PENDING, SENT, CANCELLED
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([status, sendAfter]) // Useful for cron querying
+}
+
