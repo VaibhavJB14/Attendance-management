@@ -226,7 +226,7 @@ export default function DataManagement() {
               onClick={() => { setActiveTab('user'); setMessage(null); }}
               className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'user' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
-              Add Staff / Parent
+              Add Staff
             </button>
 
             <button 
@@ -264,7 +264,7 @@ export default function DataManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Parent Phone</label>
-                  <input required type="tel" value={sParentPhone} onChange={e => setSParentPhone(e.target.value)} placeholder="e.g. +1234567890" className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500" />
+                  <input required type="tel" value={sParentPhone} onChange={e => setSParentPhone(e.target.value)} placeholder="e.g. 9876543210" className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500" />
                 </div>
               </div>
 
@@ -330,7 +330,6 @@ export default function DataManagement() {
                   <option value="TEACHER">Teacher</option>
                   <option value="WARDEN">Hostel Warden</option>
                   <option value="SCHOOL_ADMIN">Administrator</option>
-                  <option value="PARENT">Parent</option>
                 </select>
               </div>
 

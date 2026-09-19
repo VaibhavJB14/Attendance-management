@@ -17,12 +17,17 @@ export default function AutoLogout() {
       clearTimeout(timeoutId);
       // 15 minutes = 15 * 60 * 1000 = 900000 ms
       timeoutId = setTimeout(async () => {
-        // Clear local session
-        localStorage.removeItem('session');
-        // Clear secure server session
-        await fetch('/api/auth/logout', { method: 'POST' });
-        // Redirect to login
-        router.push('/login');
+        try {
+          // Clear local session
+          localStorage.removeItem('session');
+          // Clear secure server session
+          await fetch('/api/auth/logout', { method: 'POST' });
+        } catch (e) {
+          console.warn('AutoLogout fetch failed (network error)', e);
+        } finally {
+          // Redirect to login
+          router.push('/login');
+        }
       }, 900000);
     };
 

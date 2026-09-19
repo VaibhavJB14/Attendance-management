@@ -68,6 +68,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Ensure TeacherProfile exists to prevent foreign key constraint violations
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { id: teacherId }
+    });
+
+    if (!teacherProfile) {
+      await prisma.teacherProfile.create({
+        data: { id: teacherId }
+      });
+    }
+
     // Create or update the assignment
     const assignment = await prisma.classTeacherAssignment.upsert({
       where: {

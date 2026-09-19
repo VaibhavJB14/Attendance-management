@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         tenantId,
         studentId,
         date: new Date(),
-        sessionName: 'Marks Update',
+        sessionName: 'General Message',
         message: message,
         sendAfter: new Date(),
         status: 'PENDING'

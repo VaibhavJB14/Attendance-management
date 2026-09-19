@@ -79,11 +79,13 @@ export async function POST(request: Request) {
     }
     
     const operations = records.map(record => {
+      const recordSubject = record.subject || subject; // Fallback to top-level if not present
+      const recordMaxScore = record.maxScore || maxScore;
       return prisma.mark.findFirst({
         where: {
           studentId: record.studentId,
           examName: examName,
-          subject: subject
+          subject: recordSubject
         }
       }).then(existing => {
         if (existing) {
@@ -91,7 +93,7 @@ export async function POST(request: Request) {
             where: { id: existing.id },
             data: { 
               score: Number(record.score), 
-              maxScore: Number(maxScore), 
+              maxScore: Number(recordMaxScore), 
               examCategory: examCategory,
               syllabusCoverage: syllabusCoverage,
               recordedAt: new Date() 
@@ -104,9 +106,9 @@ export async function POST(request: Request) {
               examName: examName,
               examCategory: examCategory,
               syllabusCoverage: syllabusCoverage,
-              subject: subject,
+              subject: recordSubject,
               score: Number(record.score),
-              maxScore: Number(maxScore),
+              maxScore: Number(recordMaxScore),
             }
           });
         }
@@ -114,6 +116,37 @@ export async function POST(request: Request) {
     });
 
     await Promise.all(operations);
+
+    // Enqueue SMS notifications for parents
+    const studentIds = records.map((r: any) => r.studentId);
+    const studentsList = await prisma.student.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, firstName: true }
+    });
+    
+    const studentMap = new Map(studentsList.map(s => [s.id, s]));
+
+    const notifications = records.map((record: any) => {
+      const student = studentMap.get(record.studentId);
+      const studentName = student ? student.firstName : 'Student';
+      const recordSubject = record.subject || subject;
+      const recordMaxScore = record.maxScore || maxScore;
+      const msg = `Dear Parent, ${studentName} scored ${record.score}/${recordMaxScore} in ${recordSubject} (${examName}).`;
+      
+      return prisma.notificationQueue.create({
+        data: {
+          tenantId: session.tenantId,
+          studentId: record.studentId,
+          date: new Date(),
+          sessionName: 'Marks Update',
+          message: msg,
+          sendAfter: new Date(),
+          status: 'PENDING'
+        }
+      });
+    });
+
+    await Promise.all(notifications);
 
     return NextResponse.json({ success: true, message: 'Marks updated successfully' });
   } catch (error: any) {

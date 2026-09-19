@@ -82,13 +82,21 @@ async function main() {
   // 2. Create Users
   for (const u of mockData.users) {
     const hashedPassword = await bcrypt.hash(u.password, 10);
+    const userData: any = {
+      tenantId: tenant.id,
+      email: u.email,
+      hashedPassword,
+      role: u.role,
+    };
+
+    if (u.role === 'TEACHER') {
+      userData.teacherProfile = {
+        create: {}
+      };
+    }
+
     await prisma.user.create({
-      data: {
-        tenantId: tenant.id,
-        email: u.email,
-        hashedPassword,
-        role: u.role,
-      },
+      data: userData,
     });
   }
 

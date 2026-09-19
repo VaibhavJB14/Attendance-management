@@ -28,20 +28,28 @@ export async function GET(request: Request) {
 
     for (const notification of pendingNotifications) {
       try {
-        // Double check current attendance status for the student, date, and session
-        const currentAttendance = await prisma.attendance.findFirst({
-          where: {
-            studentId: notification.studentId,
-            date: notification.date,
-            sessionName: notification.sessionName
-          },
-          orderBy: {
-            id: 'desc'
-          }
-        });
+        let shouldSend = true;
 
-        // If no attendance record exists, or it's no longer ABSENT, cancel the notification
-        if (!currentAttendance || currentAttendance.status !== 'ABSENT') {
+        if (notification.sessionName !== 'General Message' && notification.sessionName !== 'Marks Update') {
+          // Double check current attendance status for the student, date, and session
+          const currentAttendance = await prisma.attendance.findFirst({
+            where: {
+              studentId: notification.studentId,
+              date: notification.date,
+              sessionName: notification.sessionName
+            },
+            orderBy: {
+              id: 'desc'
+            }
+          });
+
+          // If no attendance record exists, or it's no longer ABSENT, cancel the notification
+          if (!currentAttendance || currentAttendance.status !== 'ABSENT') {
+            shouldSend = false;
+          }
+        }
+
+        if (!shouldSend) {
           await prisma.notificationQueue.update({
             where: { id: notification.id },
             data: { status: 'CANCELLED' }

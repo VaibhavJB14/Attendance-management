@@ -39,11 +39,13 @@ export default function AcademicMarks() {
   const [section, setSection] = useState('');
   
   // Single Test Entry Fields
-  const [examCategory, setExamCategory] = useState('Weekly');
-  const [examName, setExamName] = useState('');
+  const [examCategory, setExamCategory] = useState('Competitive');
+  const [examName, setExamName] = useState('JEE');
   const [syllabusCoverage, setSyllabusCoverage] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState('PHYSICS');
+  const [customSubject, setCustomSubject] = useState('');
   const [maxScore, setMaxScore] = useState('100');
+  const [maxScores, setMaxScores] = useState<Record<string, string>>({});
   
   // Master Gradebook Filters
   const [filterCategory, setFilterCategory] = useState('All');
@@ -85,8 +87,8 @@ export default function AcademicMarks() {
 
   const loadStudentsAndMarks = async () => {
     if (activeTab === 'single') {
-      if (!session || !grade || !section || !examName || !subject) {
-        setMessage({ type: 'error', text: 'Please fill all required filter fields.' });
+      if (!session || !grade || !section) {
+        setMessage({ type: 'error', text: 'Please select a Grade and Section.' });
         return;
       }
     } else {
@@ -115,8 +117,9 @@ export default function AcademicMarks() {
       }
 
       // 2. Fetch Students and Marks
+      const finalSubject = subject === 'Other' ? customSubject : subject;
       const url = activeTab === 'single' 
-        ? `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}&examName=${encodeURIComponent(examName)}&subject=${encodeURIComponent(subject)}`
+        ? `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}&examName=${encodeURIComponent(examName)}&subject=${encodeURIComponent(finalSubject)}`
         : `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`;
         
       const res = await fetch(url, {
@@ -134,8 +137,25 @@ export default function AcademicMarks() {
         const newMarksMap: Record<string, string> = {};
         if (data.marks && data.marks.length > 0) {
           data.marks.forEach((m: any) => {
-            newMarksMap[m.studentId] = m.score.toString();
+            if (examCategory === 'Competitive') {
+               if (m.examName === examName) {
+                 newMarksMap[`${m.studentId}_${m.subject}`] = m.score.toString();
+               }
+            } else {
+               if (m.examName === examName && m.subject === finalSubject) {
+                 newMarksMap[`${m.studentId}_${finalSubject}`] = m.score.toString();
+               }
+            }
           });
+        } else {
+           // Clear previous marks map if no marks were fetched for a new sheet load
+           // Only do this if they actually searched for an exam
+           const finalSubject = subject === 'Other' ? customSubject : subject;
+           if (examName && finalSubject) {
+               // No previous marks, keep it empty
+           } else {
+               // Clear everything because it's a fresh sheet
+           }
         }
         setMarksMap(newMarksMap);
       }
@@ -147,23 +167,73 @@ export default function AcademicMarks() {
     }
   };
 
-  const handleScoreChange = (studentId: string, value: string) => {
+  const handleScoreChange = (studentId: string, subjectKey: string, value: string) => {
+    let parsedValue = parseFloat(value);
+    const max = examCategory === 'Competitive' 
+      ? parseFloat(maxScores[subjectKey] || '100')
+      : parseFloat(maxScore || '100');
+      
+    if (!isNaN(parsedValue) && parsedValue > max) {
+      value = max.toString();
+    }
+
     setMarksMap(prev => ({
       ...prev,
-      [studentId]: value
+      [`${studentId}_${subjectKey}`]: value
     }));
+  };
+
+  const handleMaxScoreChange = (subjectKey: string, value: string) => {
+    setMaxScores(prev => ({
+      ...prev,
+      [subjectKey]: value
+    }));
+  };
+
+  const getCompetitiveSubjects = (exam: string) => {
+    if (exam === 'JEE') return ['PHYSICS', 'CHEMISTRY', 'MATHS'];
+    if (exam === 'NEET') return ['PHYSICS', 'CHEMISTRY', 'BIOLOGY'];
+    if (exam === 'K-CET') return ['PHYSICS', 'CHEMISTRY', 'MATHS', 'BIOLOGY'];
+    return [];
   };
 
   const handleSubmit = async () => {
     if (!session) return;
     
-    const records = students.map(s => {
-      const score = marksMap[s.id];
-      return {
-        studentId: s.id,
-        score: score ? parseFloat(score) : 0
-      };
-    });
+    const finalSubject = subject === 'Other' ? customSubject : subject;
+    
+    if (!examName || (examCategory !== 'Competitive' && !finalSubject)) {
+      setMessage({ type: 'error', text: 'Please provide Exam Name and Subject before saving.' });
+      return;
+    }
+
+    let records: any[] = [];
+    
+    if (examCategory === 'Competitive') {
+      const subjects = getCompetitiveSubjects(examName);
+      students.forEach(s => {
+        subjects.forEach(sub => {
+          const score = marksMap[`${s.id}_${sub}`];
+          if (score !== undefined && score !== '') {
+            records.push({
+              studentId: s.id,
+              subject: sub,
+              score: parseFloat(score),
+              maxScore: maxScores[sub] || '100'
+            });
+          }
+        });
+      });
+    } else {
+      records = students.map(s => {
+        const score = marksMap[`${s.id}_${finalSubject}`];
+        return {
+          studentId: s.id,
+          subject: finalSubject,
+          score: score ? parseFloat(score) : 0
+        };
+      });
+    }
 
     setSaving(true);
     setMessage(null);
@@ -179,7 +249,7 @@ export default function AcademicMarks() {
           examName,
           examCategory,
           syllabusCoverage,
-          subject,
+          subject: finalSubject,
           maxScore,
           records
         })
@@ -188,7 +258,7 @@ export default function AcademicMarks() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save marks');
 
-      setMessage({ type: 'success', text: `Successfully saved ${subject} marks for ${records.length} students.` });
+      setMessage({ type: 'success', text: `Successfully saved ${finalSubject} marks for ${records.length} students.` });
       
     } catch (error: unknown) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' });
@@ -260,6 +330,47 @@ export default function AcademicMarks() {
     } catch (error: unknown) {
       setMessagingStatus('error');
     }
+  };
+
+  const downloadCSV = () => {
+    if (students.length === 0 || uniqueTests.length === 0) return;
+    
+    // Header row
+    const headers = ['Student Name', 'Roll Number'];
+    uniqueTests.forEach(test => {
+      const [cat, name, sub] = test.split(' | ');
+      headers.push(`${sub} - ${name} (${cat})`);
+    });
+    
+    let csvContent = headers.join(',') + '\n';
+    
+    // Data rows
+    students.forEach(student => {
+      const row = [`"${student.firstName} ${student.lastName}"`, `"${student.rollNumber || ''}"`];
+      
+      uniqueTests.forEach(test => {
+        const [cat, name, sub] = test.split(' | ');
+        const mark = allMarks.find(m => 
+          m.studentId === student.id && 
+          m.examName === name && 
+          m.subject === sub &&
+          (m.examCategory || 'Custom') === cat
+        );
+        
+        row.push(mark ? `"${mark.score}/${mark.maxScore}"` : '""');
+      });
+      
+      csvContent += row.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Marks_${grade}_${section}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Generate subjects and categories for filters
@@ -353,7 +464,7 @@ export default function AcademicMarks() {
 
               <button 
                 onClick={loadStudentsAndMarks}
-                disabled={loading || !grade || !section || (activeTab === 'single' && (!examName || !subject))}
+                disabled={loading || !grade || !section}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? '...' : 'Load Sheet'}
@@ -367,31 +478,70 @@ export default function AcademicMarks() {
                 
                 <select 
                   value={examCategory}
-                  onChange={(e) => { setExamCategory(e.target.value); setHasSearched(false); }}
+                  onChange={(e) => { 
+                    const newCat = e.target.value;
+                    setExamCategory(newCat); 
+                    if (newCat === 'Competitive') {
+                      setExamName('JEE');
+                    } else {
+                      setExamName('');
+                    }
+                    setHasSearched(false); 
+                  }}
                   className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm w-full sm:w-40"
                 >
-                  <option value="Weekly">Weekly</option>
-                  <option value="Monthly">Monthly</option>
-                  <option value="Semester">Semester</option>
-                  <option value="Final">Final</option>
-                  <option value="Custom">Custom</option>
+                  <option value="Competitive">Competitive</option>
+                  <option value="Theory">Theory</option>
+                  <option value="Practical">Practical</option>
                 </select>
 
-                <input 
-                  type="text" 
-                  placeholder="Exam Name (e.g. Week 1)"
-                  value={examName}
-                  onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
-                  className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
-                />
+                {examCategory === 'Competitive' ? (
+                  <select
+                    value={examName}
+                    onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
+                  >
+                    <option value="JEE">JEE</option>
+                    <option value="NEET">NEET</option>
+                    <option value="K-CET">K-CET</option>
+                  </select>
+                ) : (
+                  <input 
+                    type="text" 
+                    placeholder="Exam Name (e.g. Unit Test 1)"
+                    value={examName}
+                    onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
+                  />
+                )}
 
-                <input 
-                  type="text" 
-                  placeholder="Subject (e.g. Math)"
-                  value={subject}
-                  onChange={(e) => { setSubject(e.target.value); setHasSearched(false); }}
-                  className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-40"
-                />
+                {examCategory !== 'Competitive' && (
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <select
+                      value={subject}
+                      onChange={(e) => { setSubject(e.target.value); setHasSearched(false); }}
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
+                    >
+                      <option value="PHYSICS">PHYSICS</option>
+                      <option value="MATHS">MATHS</option>
+                      <option value="CHEMISTRY">CHEMISTRY</option>
+                      <option value="BIOLOGY/COMPUTER SCIENCE">BIOLOGY/COMPUTER SCIENCE</option>
+                      <option value="KANNADA/SANSKRITH">KANNADA/SANSKRITH</option>
+                      <option value="ENGLISH">ENGLISH</option>
+                      <option value="Other">Other...</option>
+                    </select>
+                    
+                    {subject === 'Other' && (
+                      <input 
+                        type="text" 
+                        placeholder="Custom Subject"
+                        value={customSubject}
+                        onChange={(e) => { setCustomSubject(e.target.value); setHasSearched(false); }}
+                        className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-40"
+                      />
+                    )}
+                  </div>
+                )}
                 
                 <input 
                   type="text" 
@@ -475,19 +625,30 @@ export default function AcademicMarks() {
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mt-8">
             <div className="p-6 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">{examName} <span className="text-slate-400 font-normal">({examCategory})</span> - {subject}</h2>
+                <h2 className="text-xl font-bold text-slate-800">{examName} <span className="text-slate-400 font-normal">({examCategory})</span> {examCategory !== 'Competitive' && `- ${subject === 'Other' ? customSubject : subject}`}</h2>
                 <p className="text-sm text-slate-500 mt-1">{grade} {section} {syllabusCoverage && `• Syllabus: ${syllabusCoverage}`}</p>
               </div>
               
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-slate-600">Max Score:</label>
-                  <input 
-                    type="number" 
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(e.target.value)}
-                    className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-20 font-bold text-center shadow-inner"
-                  />
+                  {examCategory === 'Competitive' ? (
+                    <>
+                      <label className="text-sm font-semibold text-slate-600">Total Max Score:</label>
+                      <span className="text-lg font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
+                        {getCompetitiveSubjects(examName).reduce((sum, sub) => sum + (parseFloat(maxScores[sub] !== undefined ? maxScores[sub] : '100') || 0), 0)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <label className="text-sm font-semibold text-slate-600">Max Score:</label>
+                      <input 
+                        type="number" 
+                        value={maxScore}
+                        onChange={(e) => setMaxScore(e.target.value)}
+                        className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-20 font-bold text-center shadow-inner"
+                      />
+                    </>
+                  )}
                 </div>
                 
                 <button 
@@ -516,13 +677,31 @@ export default function AcademicMarks() {
                   <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
                     <th className="px-6 py-4">Student Name</th>
                     <th className="px-6 py-4">Roll No.</th>
-                    <th className="px-6 py-4 text-right">Score</th>
+                    {examCategory === 'Competitive' ? (
+                      getCompetitiveSubjects(examName).map(sub => (
+                        <th key={sub} className="px-6 py-4 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <span>{sub} Score</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400">MAX:</span>
+                              <input 
+                                type="number" 
+                                value={maxScores[sub] !== undefined ? maxScores[sub] : '100'}
+                                onChange={(e) => handleMaxScoreChange(sub, e.target.value)}
+                                className="bg-white border border-slate-300 text-slate-800 text-xs rounded focus:ring-indigo-500 focus:border-indigo-500 p-1 w-16 text-center font-bold"
+                              />
+                            </div>
+                          </div>
+                        </th>
+                      ))
+                    ) : (
+                      <th className="px-6 py-4 text-center">Score</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {students.map((student) => {
-                    const score = marksMap[student.id] || '';
-                    
+                    const finalSubject = subject === 'Other' ? customSubject : subject;
                     return (
                       <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 font-semibold text-slate-800">
@@ -534,15 +713,32 @@ export default function AcademicMarks() {
                           </div>
                         </td>
                         <td className="px-6 py-4 font-medium text-slate-500">{student.rollNumber || '-'}</td>
-                        <td className="px-6 py-4 text-right">
-                          <input
-                            type="number"
-                            value={score}
-                            onChange={(e) => handleScoreChange(student.id, e.target.value)}
-                            placeholder="0"
-                            className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-24 font-bold text-center shadow-inner inline-block"
-                          />
-                        </td>
+                        {examCategory === 'Competitive' ? (
+                          getCompetitiveSubjects(examName).map(sub => {
+                            const score = marksMap[`${student.id}_${sub}`] || '';
+                            return (
+                              <td key={sub} className="px-6 py-4 text-center">
+                                <input
+                                  type="number"
+                                  value={score}
+                                  onChange={(e) => handleScoreChange(student.id, sub, e.target.value)}
+                                  placeholder="0"
+                                  className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-24 font-bold text-center shadow-inner inline-block"
+                                />
+                              </td>
+                            );
+                          })
+                        ) : (
+                          <td className="px-6 py-4 text-center">
+                            <input
+                              type="number"
+                              value={marksMap[`${student.id}_${finalSubject}`] || ''}
+                              onChange={(e) => handleScoreChange(student.id, finalSubject, e.target.value)}
+                              placeholder="0"
+                              className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-24 font-bold text-center shadow-inner inline-block"
+                            />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -555,11 +751,19 @@ export default function AcademicMarks() {
         {/* Master Gradebook Grid */}
         {activeTab === 'master' && students.length > 0 && (
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mt-8">
-            <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Master Gradebook</h2>
                 <p className="text-sm text-slate-500 mt-1">{grade} {section}</p>
               </div>
+              
+              <button 
+                onClick={downloadCSV}
+                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export CSV
+              </button>
             </div>
             
             <div className="overflow-x-auto">
