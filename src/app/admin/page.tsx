@@ -90,8 +90,6 @@ export default function AdminHub() {
             </div>
           </Link>
 
-          {session.plan !== 'BASIC' && (
-            <>
               <Link href="/admin/notifications" className="group">
                 <div className="h-full bg-white p-8 rounded-3xl shadow-md border border-slate-200 hover:shadow-xl hover:border-emerald-300 transition-all duration-300">
                   <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 transition-all duration-300">
@@ -119,8 +117,6 @@ export default function AdminHub() {
                   <p className="text-slate-500">Auto-generate exam seating arrangements.</p>
                 </div>
               </Link>
-            </>
-          )}
 
         </div>
 

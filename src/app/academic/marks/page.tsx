@@ -49,6 +49,7 @@ export default function AcademicMarks() {
   
   // Master Gradebook Filters
   const [filterCategory, setFilterCategory] = useState('All');
+  const [filterExam, setFilterExam] = useState('All');
   const [filterSubject, setFilterSubject] = useState('All');
   
   const [students, setStudents] = useState<Student[]>([]);
@@ -118,9 +119,14 @@ export default function AcademicMarks() {
 
       // 2. Fetch Students and Marks
       const finalSubject = subject === 'Other' ? customSubject : subject;
-      const url = activeTab === 'single' 
-        ? `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}&examName=${encodeURIComponent(examName)}&subject=${encodeURIComponent(finalSubject)}`
-        : `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`;
+      let url = `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`;
+      
+      if (activeTab === 'single') {
+        url += `&examName=${encodeURIComponent(examName)}`;
+        if (examCategory !== 'Competitive') {
+          url += `&subject=${encodeURIComponent(finalSubject)}`;
+        }
+      }
         
       const res = await fetch(url, {
         headers: {
@@ -258,7 +264,12 @@ export default function AcademicMarks() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save marks');
 
-      setMessage({ type: 'success', text: `Successfully saved ${finalSubject} marks for ${records.length} students.` });
+      if (examCategory === 'Competitive') {
+        const uniqueStudents = new Set(records.map(r => r.studentId)).size;
+        setMessage({ type: 'success', text: `Successfully saved ${examName} marks for ${uniqueStudents} student(s) (${records.length} subject records).` });
+      } else {
+        setMessage({ type: 'success', text: `Successfully saved ${finalSubject} marks for ${records.length} student(s).` });
+      }
       
     } catch (error: unknown) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' });
@@ -332,12 +343,25 @@ export default function AcademicMarks() {
     }
   };
 
-  const downloadCSV = () => {
-    if (students.length === 0 || uniqueTests.length === 0) return;
+  const downloadCSV = (type: 'filtered' | 'all' = 'filtered') => {
+    if (students.length === 0 || allMarks.length === 0) return;
     
+    let testsToExport: string[] = [];
+    if (type === 'filtered') {
+      testsToExport = uniqueTests;
+    } else {
+      const tests = new Set<string>();
+      allMarks.forEach(m => {
+        tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject}`);
+      });
+      testsToExport = Array.from(tests);
+    }
+
+    if (testsToExport.length === 0) return;
+
     // Header row
     const headers = ['Student Name', 'Roll Number'];
-    uniqueTests.forEach(test => {
+    testsToExport.forEach(test => {
       const [cat, name, sub] = test.split(' | ');
       headers.push(`${sub} - ${name} (${cat})`);
     });
@@ -348,7 +372,7 @@ export default function AcademicMarks() {
     students.forEach(student => {
       const row = [`"${student.firstName} ${student.lastName}"`, `"${student.rollNumber || ''}"`];
       
-      uniqueTests.forEach(test => {
+      testsToExport.forEach(test => {
         const [cat, name, sub] = test.split(' | ');
         const mark = allMarks.find(m => 
           m.studentId === student.id && 
@@ -367,21 +391,28 @@ export default function AcademicMarks() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Marks_${grade}_${section}_${new Date().toISOString().split('T')[0]}.csv`);
+    const fileNameSuffix = type === 'filtered' ? 'Filtered' : 'All';
+    link.setAttribute('download', `Marks_${grade}_${section}_${fileNameSuffix}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Generate subjects and categories for filters
+  // Generate subjects, categories and exams for filters
   const getFilterOptions = () => {
     const subjects = new Set<string>();
     const categories = new Set<string>();
+    const exams = new Set<string>();
     allMarks.forEach(m => {
       subjects.add(m.subject);
       if (m.examCategory) categories.add(m.examCategory);
+      if (m.examName) exams.add(m.examName);
     });
-    return { subjects: Array.from(subjects), categories: Array.from(categories) };
+    return { 
+      subjects: Array.from(subjects), 
+      categories: Array.from(categories),
+      exams: Array.from(exams) 
+    };
   };
   const filterOptions = getFilterOptions();
 
@@ -390,8 +421,9 @@ export default function AcademicMarks() {
     const tests = new Set<string>();
     allMarks.forEach(m => {
       const matchCat = filterCategory === 'All' || m.examCategory === filterCategory;
+      const matchExam = filterExam === 'All' || m.examName === filterExam;
       const matchSub = filterSubject === 'All' || m.subject === filterSubject;
-      if (matchCat && matchSub) {
+      if (matchCat && matchExam && matchSub) {
         tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject}`);
       }
     });
@@ -581,6 +613,20 @@ export default function AcademicMarks() {
                      ))}
                    </select>
                  </div>
+
+                 <div className="flex items-center gap-2">
+                   <label className="text-sm font-semibold text-slate-600">Exam:</label>
+                   <select 
+                     value={filterExam}
+                     onChange={(e) => setFilterExam(e.target.value)}
+                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
+                   >
+                     <option value="All">All Exams</option>
+                     {filterOptions.exams.map(e => (
+                       <option key={e} value={e}>{e}</option>
+                     ))}
+                   </select>
+                 </div>
                  
                  <div className="flex items-center gap-2">
                    <label className="text-sm font-semibold text-slate-600">Subject:</label>
@@ -757,13 +803,24 @@ export default function AcademicMarks() {
                 <p className="text-sm text-slate-500 mt-1">{grade} {section}</p>
               </div>
               
-              <button 
-                onClick={downloadCSV}
-                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Export CSV
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => downloadCSV('filtered')}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
+                  title="Export currently filtered view"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                  Export Filtered
+                </button>
+                <button 
+                  onClick={() => downloadCSV('all')}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
+                  title="Export all marks for this class"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                  Export All
+                </button>
+              </div>
             </div>
             
             <div className="overflow-x-auto">

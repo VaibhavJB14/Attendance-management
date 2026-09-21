@@ -255,6 +255,7 @@ export default function GlobalAttendance() {
                     <option value="">All Sessions</option>
                     <option value="Morning (8-12)">Morning (8-12)</option>
                     <option value="Afternoon (12-3)">Afternoon (12-3)</option>
+                    <option value="Evening (3-6)">Evening (3-6)</option>
                     <option value="Hostel Morning">Hostel Morning</option>
                     <option value="Hostel Night">Hostel Night</option>
                   </select>

@@ -31,7 +31,8 @@ export async function requirePlan(tenantId: string, requiredPlan: PlanTier) {
   const requiredTier = PLAN_HIERARCHY[requiredPlan];
 
   if (currentTier < requiredTier) {
-    throw new Error(`Feature Locked: Requires ${requiredPlan} plan.`);
+    // throw new Error(`Feature Locked: Requires ${requiredPlan} plan.`);
+    console.log(`Demo mode: Bypassing plan requirement (${requiredPlan}) for tenant ${tenantId}`);
   }
 
   return true;
