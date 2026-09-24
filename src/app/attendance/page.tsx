@@ -30,6 +30,11 @@ export default function Home() {
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
   const [sessionName, setSessionName] = useState('');
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+
+  // Dynamic Class Options
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
   
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceState, setAttendanceState] = useState<Record<string, string>>({}); // { studentId: 'PRESENT' | 'ABSENT' }
@@ -60,6 +65,19 @@ export default function Home() {
     // Optionally default to the teacher's domain if they have one, 
     // but for now we just use the default state values.
   }, [router]);
+
+  useEffect(() => {
+    if (session) {
+      fetch('/api/classes', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) setSchoolClasses(data.classes);
+      })
+      .catch(console.error);
+    }
+  }, [session]);
 
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -242,8 +260,11 @@ export default function Home() {
                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-base rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block py-2.5 px-3"
               >
                 <option value="">Select Grade</option>
-                <option value="Year 1">Year 1</option>
-                <option value="Year 2">Year 2</option>
+                {uniqueGrades.length > 0 ? (
+                  uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                ) : (
+                  <option value="" disabled>No classes available</option>
+                )}
               </select>
             </div>
             <div className="w-full">
@@ -267,10 +288,11 @@ export default function Home() {
                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-base rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block py-2.5 px-3"
               >
                 <option value="">Select Section</option>
-                <option value="Sec A">Sec A</option>
-                <option value="Sec B">Sec B</option>
-                <option value="Sec C">Sec C</option>
-                <option value="Sec D">Sec D</option>
+                {getSectionsForGrade(grade).length > 0 ? (
+                  getSectionsForGrade(grade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                ) : (
+                  <option value="" disabled>No sections available</option>
+                )}
               </select>
             </div>
             <div className="w-full">
@@ -395,7 +417,7 @@ export default function Home() {
                                   : isAttendanceLocked ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                               }`}
                             >
-                              {status || 'PRESENT'}
+                              {status === 'ABSENT' ? 'A' : 'P'}
                             </button>
                           </div>
                         </td>

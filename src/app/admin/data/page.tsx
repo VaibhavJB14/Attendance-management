@@ -16,7 +16,7 @@ export default function DataManagement() {
   const [session, setSession] = useState<UserSession | null>(null);
 
   // Form states
-  const [activeTab, setActiveTab] = useState<'student' | 'user' | 'classTeacher'>('student');
+  const [activeTab, setActiveTab] = useState<'student' | 'user' | 'classTeacher' | 'addClass'>('student');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -27,8 +27,26 @@ export default function DataManagement() {
   const [ctSection, setCtSection] = useState('Sec A');
   const [ctTeacherId, setCtTeacherId] = useState('');
 
+  // Add Class Form
+  const [newGrade, setNewGrade] = useState('');
+  const [newSection, setNewSection] = useState('');
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+
+
+
   // Fetch data for Class Teacher tab
   useEffect(() => {
+    if (session) {
+      fetch('/api/classes', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) setSchoolClasses(data.classes);
+      })
+      .catch(console.error);
+    }
+
     if (activeTab === 'classTeacher' && session) {
       // We need to fetch teachers. We can reuse the users list if we create an endpoint or just fetch users.
       // But we don't have a GET /api/users yet, wait, we do.
@@ -67,6 +85,33 @@ export default function DataManagement() {
   const [sSection, setSSection] = useState('Sec A');
   const [sHosteler, setSHosteler] = useState(false);
   const [sHostelName, setSHostelName] = useState('Boys Hostel');
+
+  // Dynamic Class Options
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
+
+  useEffect(() => {
+    if (uniqueGrades.length > 0 && !uniqueGrades.includes(sGrade)) {
+      setSGrade(uniqueGrades[0]);
+    }
+    if (uniqueGrades.length > 0 && !uniqueGrades.includes(ctGrade)) {
+      setCtGrade(uniqueGrades[0]);
+    }
+  }, [uniqueGrades, sGrade, ctGrade]);
+
+  useEffect(() => {
+    const sSections = getSectionsForGrade(sGrade);
+    if (sSections.length > 0 && !sSections.includes(sSection)) {
+      setSSection(sSections[0]);
+    }
+  }, [sGrade, schoolClasses, sSection]);
+
+  useEffect(() => {
+    const ctSections = getSectionsForGrade(ctGrade);
+    if (ctSections.length > 0 && !ctSections.includes(ctSection)) {
+      setCtSection(ctSections[0]);
+    }
+  }, [ctGrade, schoolClasses, ctSection]);
 
   // User Form
   const [uEmail, setUEmail] = useState('');
@@ -194,6 +239,42 @@ export default function DataManagement() {
     }
   };
 
+  const handleAddClassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/classes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': session.tenantId
+        },
+        body: JSON.stringify({
+          grade: newGrade,
+          section: newSection
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add class');
+      
+      setMessage({ type: 'success', text: `Class ${newGrade} ${newSection} added successfully!` });
+      setNewGrade(''); setNewSection('');
+      
+      // refresh
+      const fetchRes = await fetch('/api/classes', { headers: { 'x-tenant-id': session.tenantId }});
+      const fetchData = await fetchRes.json();
+      if (fetchData.classes) setSchoolClasses(fetchData.classes);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!session) return null;
 
   return (
@@ -235,6 +316,12 @@ export default function DataManagement() {
             >
               Assign Class Teacher
             </button>
+            <button 
+              onClick={() => { setActiveTab('addClass'); setMessage(null); }}
+              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'addClass' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              Add Class
+            </button>
           </div>
 
           {message && (
@@ -271,19 +358,22 @@ export default function DataManagement() {
               <div className="grid grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Grade / Year</label>
-                  <select value={sGrade} onChange={e => setSGrade(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
-                    <option>Year 1</option>
-                    <option>Year 2</option>
-                    <option>Year 3</option>
+                  <select required value={sGrade} onChange={e => setSGrade(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                    {uniqueGrades.length > 0 ? (
+                      uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                    ) : (
+                      <option value="" disabled>No classes available</option>
+                    )}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Section</label>
-                  <select value={sSection} onChange={e => setSSection(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
-                    <option>Sec A</option>
-                    <option>Sec B</option>
-                    <option>Sec C</option>
-                    <option>Sec D</option>
+                  <select required value={sSection} onChange={e => setSSection(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                    {getSectionsForGrade(sGrade).length > 0 ? (
+                      getSectionsForGrade(sGrade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <option value="" disabled>No sections available</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -347,19 +437,22 @@ export default function DataManagement() {
                 <div className="grid grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Grade / Year</label>
-                    <select value={ctGrade} onChange={e => setCtGrade(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
-                      <option>Year 1</option>
-                      <option>Year 2</option>
-                      <option>Year 3</option>
+                    <select required value={ctGrade} onChange={e => setCtGrade(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                      {uniqueGrades.length > 0 ? (
+                        uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                      ) : (
+                        <option value="" disabled>No classes available</option>
+                      )}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Section</label>
-                    <select value={ctSection} onChange={e => setCtSection(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
-                      <option>Sec A</option>
-                      <option>Sec B</option>
-                      <option>Sec C</option>
-                      <option>Sec D</option>
+                    <select required value={ctSection} onChange={e => setCtSection(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                      {getSectionsForGrade(ctGrade).length > 0 ? (
+                        getSectionsForGrade(ctGrade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                      ) : (
+                        <option value="" disabled>No sections available</option>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -403,6 +496,56 @@ export default function DataManagement() {
                       )) : (
                         <tr>
                           <td colSpan={3} className="px-6 py-8 text-center text-slate-400 italic">No class teachers assigned yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add Class Form */}
+          {activeTab === 'addClass' && (
+            <div className="space-y-8">
+              <form onSubmit={handleAddClassSubmit} className="space-y-5 bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                <h3 className="text-lg font-bold text-amber-900 mb-4">Add New Class & Section</h3>
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Grade / Year</label>
+                    <input required type="text" value={newGrade} onChange={e => setNewGrade(e.target.value)} placeholder="e.g. Year 1, Grade 5" className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Section</label>
+                    <input required type="text" value={newSection} onChange={e => setNewSection(e.target.value)} placeholder="e.g. Sec A, Blue" className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500" />
+                  </div>
+                </div>
+
+                <button disabled={loading} type="submit" className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 mt-4">
+                  {loading ? 'Processing...' : 'Add Class'}
+                </button>
+              </form>
+
+              {/* Current Classes Table */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Current Classes</h3>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+                        <th className="px-6 py-4">Grade</th>
+                        <th className="px-6 py-4">Section</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {schoolClasses.length > 0 ? schoolClasses.map((cls) => (
+                        <tr key={cls.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4 font-semibold text-slate-800">{cls.grade}</td>
+                          <td className="px-6 py-4 font-medium text-slate-500">{cls.section}</td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={2} className="px-6 py-8 text-center text-slate-400 italic">No classes added yet.</td>
                         </tr>
                       )}
                     </tbody>

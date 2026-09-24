@@ -4,16 +4,6 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { requirePlan } from '@/lib/featureGuard';
 
-// Standard college timeslots: 5 periods a day, Monday to Friday (1-5)
-const DAYS = [1, 2, 3, 4, 5]; 
-const PERIODS = [
-  { start: "09:00", end: "10:00" },
-  { start: "10:00", end: "11:00" },
-  { start: "11:30", end: "12:30" }, // After break
-  { start: "13:30", end: "14:30" }, // After lunch
-  { start: "14:30", end: "15:30" },
-];
-
 export async function POST(request: Request) {
   try {
     const session = await getSession();
@@ -22,22 +12,53 @@ export async function POST(request: Request) {
     }
     const tenantId = session.tenantId;
     await requirePlan(tenantId, 'PRO');
+    const body = await request.json().catch(() => ({}));
+    const { grade, section } = body;
+    
+    if (!grade || !section) {
+      return NextResponse.json({ error: 'Grade and section are required' }, { status: 400 });
+    }
 
-    // 1. Clear existing timetable for this tenant to regenerate from scratch
-    // In a real app, you might only regenerate for a specific grade/section, but we do full reset here for simplicity.
+    // 1. Fetch dynamic timeslots for this tenant
+    const timeslots = await prisma.timeslot.findMany({
+      where: { tenantId },
+      orderBy: { startTime: 'asc' }
+    });
+    
+    if (timeslots.length === 0) {
+      return NextResponse.json({ error: 'Please set up Timetable Slots first in the settings tab.' }, { status: 400 });
+    }
+    
+    const PERIODS = timeslots.map(ts => ({ start: ts.startTime, end: ts.endTime }));
+    const DAYS = [1, 2, 3, 4, 5];
+
+    // 2. Clear existing timetable ONLY for this specific grade and section
     await prisma.timetable.deleteMany({
-      where: { tenantId }
+      where: { tenantId, grade, section }
     });
 
-    // 2. Fetch all requirements for the tenant
+    // 3. Fetch requirements ONLY for this grade and section
     const requirements = await prisma.courseRequirement.findMany({
-      where: { tenantId },
+      where: { tenantId, grade, section },
       orderBy: { periodsPerWeek: 'desc' } // Schedule hardest constraints first
     });
 
     // We will keep an in-memory ledger of teacher assignments to prevent double-booking
     // Map of "Day_StartTime" -> Set of teacherIds busy at that time
     const teacherBusyMap = new Map<string, Set<string>>();
+
+    // Load existing timetables from OTHER sections to prevent teacher overlap
+    const existingTimetables = await prisma.timetable.findMany({
+      where: { tenantId } // (The current section's timetable was already deleted)
+    });
+
+    for (const tt of existingTimetables) {
+      const timeKey = `${tt.dayOfWeek}_${tt.startTime}`;
+      if (!teacherBusyMap.has(timeKey)) {
+        teacherBusyMap.set(timeKey, new Set());
+      }
+      teacherBusyMap.get(timeKey)!.add(tt.teacherId);
+    }
 
     // Map of "TeacherId_Day" -> Set of Period Indices assigned
     const teacherPeriodsMap = new Map<string, Set<number>>();
@@ -49,63 +70,90 @@ export async function POST(request: Request) {
     for (const req of requirements) {
       let periodsAssigned = 0;
 
-      // Try to assign the required number of periods
-      for (const day of DAYS) {
-        if (periodsAssigned >= req.periodsPerWeek) break;
+      let attempts = 0;
+      const subjectPeriodsPerDay = new Map<number, number>();
 
-        for (let periodIndex = 0; periodIndex < PERIODS.length; periodIndex++) {
-          const period = PERIODS[periodIndex];
+      while (periodsAssigned < req.periodsPerWeek && attempts < 50) {
+        attempts++;
+
+        // Shuffle days to prevent Monday bias
+        const shuffledDays = [...DAYS].sort(() => Math.random() - 0.5);
+
+        for (const day of shuffledDays) {
           if (periodsAssigned >= req.periodsPerWeek) break;
 
-          const timeKey = `${day}_${period.start}`;
+          const isLab = req.subject.toLowerCase().includes('lab');
+          const maxPeriodsForThisDay = isLab ? 2 : Math.ceil(req.periodsPerWeek / DAYS.length);
           
-          if (!teacherBusyMap.has(timeKey)) {
-            teacherBusyMap.set(timeKey, new Set());
-          }
+          if ((subjectPeriodsPerDay.get(day) || 0) >= maxPeriodsForThisDay) continue;
 
-          const busyTeachers = teacherBusyMap.get(timeKey)!;
+          // Shuffle periods to prevent vertical striping (e.g. Math always at 9am)
+          const shuffledPeriodIndices = Array.from({ length: PERIODS.length }, (_, i) => i).sort(() => Math.random() - 0.5);
 
-          const teacherDayKey = `${req.teacherId}_${day}`;
-          if (!teacherPeriodsMap.has(teacherDayKey)) {
-            teacherPeriodsMap.set(teacherDayKey, new Set());
-          }
-          const teacherPeriods = teacherPeriodsMap.get(teacherDayKey)!;
+          for (const periodIndex of shuffledPeriodIndices) {
+            if (periodsAssigned >= req.periodsPerWeek) break;
+            if ((subjectPeriodsPerDay.get(day) || 0) >= maxPeriodsForThisDay) break;
 
-          // Check if adding this periodIndex would create 3 consecutive periods
-          const testSet = new Set(teacherPeriods);
-          testSet.add(periodIndex);
-          const wouldHaveThreeConsecutive = 
-            (testSet.has(0) && testSet.has(1) && testSet.has(2)) ||
-            (testSet.has(1) && testSet.has(2) && testSet.has(3)) ||
-            (testSet.has(2) && testSet.has(3) && testSet.has(4));
-
-          if (wouldHaveThreeConsecutive) {
-            continue; // Skip this period, it violates the 2-consecutive max rule
-          }
-
-          // Check if this teacher is already teaching another section at this exact time
-          if (!busyTeachers.has(req.teacherId)) {
+            const period = PERIODS[periodIndex];
+            const timeKey = `${day}_${period.start}`;
             
-            // Check if this specific grade & section already has a class at this time
-            const classHasClass = newTimetables.some(
-              t => t.grade === req.grade && t.section === req.section && t.dayOfWeek === day && t.startTime === period.start
-            );
+            if (!teacherBusyMap.has(timeKey)) {
+              teacherBusyMap.set(timeKey, new Set());
+            }
 
-            if (!classHasClass) {
-              // Valid slot! Assign it.
-              busyTeachers.add(req.teacherId);
-              teacherPeriods.add(periodIndex);
-              newTimetables.push({
-                tenantId,
-                grade: req.grade,
-                section: req.section,
-                dayOfWeek: day,
-                startTime: period.start,
-                endTime: period.end,
-                subject: req.subject,
-                teacherId: req.teacherId
-              });
-              periodsAssigned++;
+            const busyTeachers = teacherBusyMap.get(timeKey)!;
+
+            const teacherDayKey = `${req.teacherId}_${day}`;
+            if (!teacherPeriodsMap.has(teacherDayKey)) {
+              teacherPeriodsMap.set(teacherDayKey, new Set());
+            }
+            const teacherPeriods = teacherPeriodsMap.get(teacherDayKey)!;
+
+            // Check if adding this periodIndex would create 3 consecutive periods
+            const testSet = new Set(teacherPeriods);
+            testSet.add(periodIndex);
+            const wouldHaveThreeConsecutive = 
+              (testSet.has(0) && testSet.has(1) && testSet.has(2)) ||
+              (testSet.has(1) && testSet.has(2) && testSet.has(3)) ||
+              (testSet.has(2) && testSet.has(3) && testSet.has(4)) ||
+              (testSet.has(3) && testSet.has(4) && testSet.has(5)) ||
+              (testSet.has(4) && testSet.has(5) && testSet.has(6)) ||
+              (testSet.has(5) && testSet.has(6) && testSet.has(7)) ||
+              (testSet.has(6) && testSet.has(7) && testSet.has(8));
+
+            if (wouldHaveThreeConsecutive) {
+              continue; // Skip this period, it violates the 2-consecutive max rule
+            }
+
+            // Check if this teacher is already teaching another section at this exact time
+            if (!busyTeachers.has(req.teacherId)) {
+              
+              // Check if this specific grade & section already has a class at this time
+              const classHasClass = newTimetables.some(
+                t => t.grade === req.grade && t.section === req.section && t.dayOfWeek === day && t.startTime === period.start
+              );
+
+              if (!classHasClass) {
+                // Valid slot! Assign it.
+                busyTeachers.add(req.teacherId);
+                teacherPeriods.add(periodIndex);
+                newTimetables.push({
+                  tenantId,
+                  grade: req.grade,
+                  section: req.section,
+                  dayOfWeek: day,
+                  startTime: period.start,
+                  endTime: period.end,
+                  subject: req.subject,
+                  teacherId: req.teacherId
+                });
+                periodsAssigned++;
+                subjectPeriodsPerDay.set(day, (subjectPeriodsPerDay.get(day) || 0) + 1);
+
+                if (!isLab) {
+                  break; // Force spread across days for normal subjects
+                }
+              }
             }
           }
         }

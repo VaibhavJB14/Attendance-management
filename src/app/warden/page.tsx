@@ -517,7 +517,7 @@ export default function WardenAttendance() {
                                   : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                               }`}
                             >
-                              {status || 'PRESENT'}
+                              {status === 'ABSENT' ? 'A' : 'P'}
                             </button>
                           </div>
                         </td>

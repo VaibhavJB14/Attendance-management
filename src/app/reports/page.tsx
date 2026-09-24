@@ -36,6 +36,23 @@ export default function Reports() {
   const [filterMonth, setFilterMonth] = useState((new Date().getMonth() + 1).toString());
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
 
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
+
+  useEffect(() => {
+    if (session) {
+      fetch('/api/classes', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) setSchoolClasses(data.classes);
+      })
+      .catch(console.error);
+    }
+  }, [session]);
+
   useEffect(() => {
     const stored = localStorage.getItem('session');
     if (!stored) {
@@ -153,9 +170,7 @@ export default function Reports() {
                     className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3"
                   >
                     <option value="">All Grades</option>
-                    <option value="Year 1">Year 1</option>
-                    <option value="Year 2">Year 2</option>
-                    <option value="Year 3">Year 3</option>
+                    {uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <select 
                     value={filterSection}
@@ -163,9 +178,7 @@ export default function Reports() {
                     className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3"
                   >
                     <option value="">All Sections</option>
-                    <option value="Sec A">Sec A</option>
-                    <option value="Sec B">Sec B</option>
-                    <option value="Sec C">Sec C</option>
+                    {filterGrade ? getSectionsForGrade(filterGrade).map((s: any) => <option key={s} value={s}>{s}</option>) : <option value="" disabled>Select Grade First</option>}
                   </select>
                 </>
               )}

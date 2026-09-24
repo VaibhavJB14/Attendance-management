@@ -37,6 +37,11 @@ export default function AcademicMarks() {
   
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+
+  // Dynamic Class Options
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
   
   // Single Test Entry Fields
   const [examCategory, setExamCategory] = useState('Competitive');
@@ -88,6 +93,19 @@ export default function AcademicMarks() {
     }
     setSession(user);
   }, [router]);
+
+  useEffect(() => {
+    if (session) {
+      fetch('/api/classes', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) setSchoolClasses(data.classes);
+      })
+      .catch(console.error);
+    }
+  }, [session]);
 
   const loadStudentsAndMarks = async () => {
     if (activeTab === 'single') {
@@ -617,9 +635,11 @@ export default function AcademicMarks() {
                 className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm"
               >
                 <option value="" disabled>Select Grade</option>
-                <option value="Year 1">Year 1</option>
-                <option value="Year 2">Year 2</option>
-                <option value="Year 3">Year 3</option>
+                {uniqueGrades.length > 0 ? (
+                  uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                ) : (
+                  <option value="" disabled>No classes available</option>
+                )}
               </select>
 
               <select 
@@ -628,10 +648,11 @@ export default function AcademicMarks() {
                 className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm"
               >
                 <option value="" disabled>Select Section</option>
-                <option value="Sec A">Sec A</option>
-                <option value="Sec B">Sec B</option>
-                <option value="Sec C">Sec C</option>
-                <option value="Sec D">Sec D</option>
+                {getSectionsForGrade(grade).length > 0 ? (
+                  getSectionsForGrade(grade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                ) : (
+                  <option value="" disabled>No sections available</option>
+                )}
               </select>
 
               <button 

@@ -15,13 +15,30 @@ export default function TimetableAdmin() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'requirements' | 'view'>('requirements');
+  const [activeTab, setActiveTab] = useState<'timeslots' | 'requirements' | 'view'>('requirements');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Filters
-  const [grade, setGrade] = useState('Year 1');
-  const [section, setSection] = useState('Sec A');
+  const [grade, setGrade] = useState('');
+  const [section, setSection] = useState('');
+  
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (g: string) => schoolClasses.filter((c: any) => c.grade === g).map((c: any) => c.section);
+
+  useEffect(() => {
+    if (uniqueGrades.length > 0 && !uniqueGrades.includes(grade)) {
+      setGrade(uniqueGrades[0]);
+    }
+  }, [uniqueGrades, grade]);
+
+  useEffect(() => {
+    const sections = getSectionsForGrade(grade);
+    if (sections.length > 0 && !sections.includes(section)) {
+      setSection(sections[0]);
+    }
+  }, [grade, schoolClasses, section]);
 
   // Form State
   const [subject, setSubject] = useState('');
@@ -32,12 +49,30 @@ export default function TimetableAdmin() {
   const [teachersList, setTeachersList] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [timetable, setTimetable] = useState<any[]>([]);
+  const [timeslots, setTimeslots] = useState<any[]>([]);
+  
+  // Timeslot State
+  const [newSlotStart, setNewSlotStart] = useState('');
+  const [newSlotEnd, setNewSlotEnd] = useState('');
 
   // Manual Assignment State
   const [selectedSlot, setSelectedSlot] = useState<{ dayOfWeek: number, dayName: string, startTime: string, endTime: string, existingId?: string, subject?: string, teacherId?: string } | null>(null);
   const [manualSubject, setManualSubject] = useState('');
   const [manualTeacherId, setManualTeacherId] = useState('');
   const [forceManual, setForceManual] = useState(false);
+
+  useEffect(() => {
+    if (session) {
+      fetch('/api/classes', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) setSchoolClasses(data.classes);
+      })
+      .catch(console.error);
+    }
+  }, [session]);
 
   useEffect(() => {
     const stored = localStorage.getItem('session');
@@ -69,6 +104,10 @@ export default function TimetableAdmin() {
   const fetchData = async (tenantId: string, g: string, s: string) => {
     setLoading(true);
     try {
+      const tsRes = await fetch(`/api/timeslots`, { headers: { 'x-tenant-id': tenantId }});
+      const tsData = await tsRes.json();
+      if (tsData.timeslots) setTimeslots(tsData.timeslots);
+
       const reqRes = await fetch(`/api/timetable/requirements?grade=${encodeURIComponent(g)}&section=${encodeURIComponent(s)}`, { headers: { 'x-tenant-id': tenantId }});
       const reqData = await reqRes.json();
       if (reqData.requirements) setRequirements(reqData.requirements);
@@ -116,6 +155,48 @@ export default function TimetableAdmin() {
     }
   };
 
+  const handleAddTimeslot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/timeslots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': session.tenantId },
+        body: JSON.stringify({ startTime: newSlotStart, endTime: newSlotEnd })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add timeslot');
+      setMessage({ type: 'success', text: 'Timeslot added successfully.' });
+      setNewSlotStart('');
+      setNewSlotEnd('');
+      fetchData(session.tenantId, grade, section);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTimeslot = async (id: string) => {
+    if (!session) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/timeslots?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'x-tenant-id': session.tenantId }
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setMessage({ type: 'success', text: 'Timeslot removed.' });
+      fetchData(session.tenantId, grade, section);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!session) return;
     setLoading(true);
@@ -124,7 +205,11 @@ export default function TimetableAdmin() {
     try {
       const res = await fetch('/api/timetable/generate', {
         method: 'POST',
-        headers: { 'x-tenant-id': session.tenantId }
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': session.tenantId 
+        },
+        body: JSON.stringify({ grade, section })
       });
 
       const data = await res.json();
@@ -217,13 +302,6 @@ export default function TimetableAdmin() {
 
   // Grid layout helpers
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  const timeslots = [
-    { start: "09:00", end: "10:00" },
-    { start: "10:00", end: "11:00" },
-    { start: "11:30", end: "12:30" },
-    { start: "13:30", end: "14:30" },
-    { start: "14:30", end: "15:30" }
-  ];
 
   if (!session) return null;
 
@@ -240,7 +318,7 @@ export default function TimetableAdmin() {
         </div>
 
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
-          <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Algorithmic Timetable</h1>
               <p className="text-slate-500 mt-2">Manage course requirements and automatically schedule classes.</p>
@@ -248,34 +326,45 @@ export default function TimetableAdmin() {
             <button 
               onClick={handleGenerate}
               disabled={loading}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 w-full lg:w-auto justify-center"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               {loading ? 'Generating...' : 'Auto-Generate College Schedule'}
             </button>
           </div>
 
-          <div className="flex gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div>
+          <div className="flex flex-col sm:flex-row gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="w-full sm:w-auto">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Grade</label>
-              <select value={grade} onChange={e => setGrade(e.target.value)} className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 font-semibold shadow-sm w-40">
-                <option>Year 1</option><option>Year 2</option><option>Year 3</option>
+              <select required value={grade} onChange={e => setGrade(e.target.value)} className="w-full sm:w-40 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 font-semibold shadow-sm">
+                {uniqueGrades.length > 0 ? (
+                  uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                ) : (
+                  <option value="" disabled>No classes</option>
+                )}
               </select>
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Section</label>
-              <select value={section} onChange={e => setSection(e.target.value)} className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 font-semibold shadow-sm w-40">
-                <option>Sec A</option><option>Sec B</option><option>Sec C</option><option>Sec D</option>
+              <select required value={section} onChange={e => setSection(e.target.value)} className="w-full sm:w-40 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2 font-semibold shadow-sm">
+                {getSectionsForGrade(grade).length > 0 ? (
+                  getSectionsForGrade(grade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                ) : (
+                  <option value="" disabled>No sections</option>
+                )}
               </select>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-slate-200 mb-6 gap-2">
-            <button onClick={() => setActiveTab('requirements')} className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'requirements' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          <div className="flex flex-wrap border-b border-slate-200 mb-6 gap-2">
+            <button onClick={() => setActiveTab('timeslots')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'timeslots' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              Timeslots Settings
+            </button>
+            <button onClick={() => setActiveTab('requirements')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'requirements' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               Course Requirements
             </button>
-            <button onClick={() => setActiveTab('view')} className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'view' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            <button onClick={() => setActiveTab('view')} className={`px-4 sm:px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'view' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               Generated Grid View
             </button>
           </div>
@@ -283,6 +372,55 @@ export default function TimetableAdmin() {
           {message && (
             <div className={`p-4 mb-6 rounded-xl text-sm font-semibold border ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
               {message.text}
+            </div>
+          )}
+
+          {activeTab === 'timeslots' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="md:col-span-1 bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 h-fit">
+                <h3 className="text-lg font-bold text-indigo-900 mb-4">Add Timeslot</h3>
+                <form onSubmit={handleAddTimeslot} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Start Time (e.g. 09:00)</label>
+                    <input required type="time" value={newSlotStart} onChange={e => setNewSlotStart(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">End Time (e.g. 09:45)</label>
+                    <input required type="time" value={newSlotEnd} onChange={e => setNewSlotEnd(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-indigo-500" />
+                  </div>
+                  <button type="submit" disabled={loading} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 mt-2">
+                    Save Timeslot
+                  </button>
+                </form>
+              </div>
+
+              <div className="md:col-span-2 overflow-x-auto">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Configured Timeslots (Periods)</h3>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[400px]">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+                        <th className="px-6 py-4">Start Time</th>
+                        <th className="px-6 py-4">End Time</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {timeslots.length > 0 ? timeslots.map(ts => (
+                        <tr key={ts.id} className="hover:bg-slate-50/50">
+                          <td className="px-6 py-4 font-bold text-slate-800">{ts.startTime}</td>
+                          <td className="px-6 py-4 font-bold text-slate-800">{ts.endTime}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => handleDeleteTimeslot(ts.id)} className="text-red-500 hover:text-red-700 font-semibold text-sm">Remove</button>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={3} className="px-6 py-8 text-center text-slate-400 italic">No timeslots configured. Please add periods like 1st period, 2nd period, etc.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -314,10 +452,10 @@ export default function TimetableAdmin() {
                 </form>
               </div>
 
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 overflow-x-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Current Constraints for {grade} {section}</h3>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <table className="w-full text-left border-collapse">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[500px]">
                     <thead>
                       <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
                         <th className="px-6 py-4">Subject</th>
@@ -350,7 +488,7 @@ export default function TimetableAdmin() {
                     <thead>
                       <tr className="bg-indigo-50 border-b border-slate-200">
                         <th className="px-4 py-3 text-sm font-bold text-indigo-900 border-r border-slate-200">Day / Time</th>
-                        {timeslots.map(t => <th key={t.start} className="px-4 py-3 text-sm font-bold text-indigo-900 border-r border-slate-200 min-w-[120px]">{t.start} - {t.end}</th>)}
+                        {timeslots.map(t => <th key={t.startTime} className="px-4 py-3 text-sm font-bold text-indigo-900 border-r border-slate-200 min-w-[120px]">{t.startTime} - {t.endTime}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -360,16 +498,16 @@ export default function TimetableAdmin() {
                           <tr key={dayName} className="border-b border-slate-200 bg-white">
                             <td className="px-4 py-4 text-sm font-bold text-slate-700 border-r border-slate-200 bg-slate-50 uppercase tracking-wider">{dayName}</td>
                             {timeslots.map(slot => {
-                              const cell = timetable.find(t => t.dayOfWeek === dayNum && t.startTime === slot.start);
+                              const cell = timetable.find(t => t.dayOfWeek === dayNum && t.startTime === slot.startTime);
                               return (
                                 <td 
-                                  key={slot.start} 
+                                  key={slot.startTime} 
                                   onClick={() => {
                                     setSelectedSlot({
                                       dayOfWeek: dayNum,
                                       dayName: dayName,
-                                      startTime: slot.start,
-                                      endTime: slot.end,
+                                      startTime: slot.startTime,
+                                      endTime: slot.endTime,
                                       existingId: cell?.id,
                                       subject: cell?.subject,
                                       teacherId: cell?.teacherId

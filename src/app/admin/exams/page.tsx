@@ -16,8 +16,13 @@ export default function ExamSeating() {
   const [session, setSession] = useState<UserSession | null>(null);
 
   // Form State
-  const [selectedGrades, setSelectedGrades] = useState<string[]>(['Year 1', 'Year 2']);
-  const [selectedSections, setSelectedSections] = useState<string[]>(['Sec A', 'Sec B', 'Sec C', 'Sec D']);
+  // Form State
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
+  
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const uniqueSections = Array.from(new Set(schoolClasses.map((c: any) => c.section)));
   
   const [numClassrooms, setNumClassrooms] = useState(10);
   const [benchesPerClassroom, setBenchesPerClassroom] = useState(20);
@@ -40,6 +45,16 @@ export default function ExamSeating() {
       return;
     }
     setSession(user);
+
+    fetch('/api/classes', {
+      headers: { 'x-tenant-id': user.tenantId }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.classes) setSchoolClasses(data.classes);
+    })
+    .catch(console.error);
+
   }, [router]);
 
   const toggleSelection = (setter: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
@@ -159,7 +174,7 @@ export default function ExamSeating() {
                   <div>
                     <p className="text-sm font-semibold text-slate-600 mb-2">Grades / Years</p>
                     <div className="flex flex-wrap gap-2">
-                      {['Year 1', 'Year 2', 'Year 3', 'Year 4'].map(g => (
+                      {uniqueGrades.length > 0 ? uniqueGrades.map((g: any) => (
                         <button
                           key={g}
                           type="button"
@@ -172,14 +187,14 @@ export default function ExamSeating() {
                         >
                           {g}
                         </button>
-                      ))}
+                      )) : <span className="text-sm text-slate-400">No grades available</span>}
                     </div>
                   </div>
                   
                   <div>
                     <p className="text-sm font-semibold text-slate-600 mb-2">Sections</p>
                     <div className="flex flex-wrap gap-2">
-                      {['Sec A', 'Sec B', 'Sec C', 'Sec D'].map(s => (
+                      {uniqueSections.length > 0 ? uniqueSections.map((s: any) => (
                         <button
                           key={s}
                           type="button"
@@ -192,7 +207,7 @@ export default function ExamSeating() {
                         >
                           {s}
                         </button>
-                      ))}
+                      )) : <span className="text-sm text-slate-400">No sections available</span>}
                     </div>
                   </div>
                 </div>

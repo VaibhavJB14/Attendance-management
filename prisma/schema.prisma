@@ -28,10 +28,24 @@ model Tenant {
   timetables       Timetable[]
   courseRequirements CourseRequirement[]
   classrooms       Classroom[]
+  schoolClasses    SchoolClass[]
   rooms            Room[]
   notificationQueues NotificationQueue[]
   classTeacherAssignments ClassTeacherAssignment[]
   excusedAbsences  ExcusedAbsence[]
+  timeslots        Timeslot[]
+}
+
+model SchoolClass {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  grade     String
+  section   String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, grade, section])
+  @@index([tenantId])
 }
 
 model User {
@@ -193,6 +207,18 @@ model Timetable {
 
   @@index([tenantId])
   @@index([grade, section])
+}
+
+model Timeslot {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  
+  startTime String   // e.g., "09:00"
+  endTime   String   // e.g., "09:45"
+  
+  @@unique([tenantId, startTime, endTime])
+  @@index([tenantId])
 }
 
 model CourseRequirement {

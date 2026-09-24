@@ -42,6 +42,10 @@ export default function GlobalAttendance() {
   const [filterSection, setFilterSection] = useState('');
   const [filterSession, setFilterSession] = useState('');
 
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+  const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
+  const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,6 +60,15 @@ export default function GlobalAttendance() {
       return;
     }
     setSession(user);
+
+    fetch('/api/classes', {
+      headers: { 'x-tenant-id': user.tenantId }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.classes) setSchoolClasses(data.classes);
+    })
+    .catch(console.error);
 
     const fetchData = async () => {
       setLoading(true);
@@ -233,9 +246,7 @@ export default function GlobalAttendance() {
                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 block p-2"
                   >
                     <option value="">All Grades</option>
-                    <option value="Year 1">Year 1</option>
-                    <option value="Year 2">Year 2</option>
-                    <option value="Year 3">Year 3</option>
+                    {uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <select 
                     value={filterSection}
@@ -243,9 +254,7 @@ export default function GlobalAttendance() {
                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 block p-2"
                   >
                     <option value="">All Sections</option>
-                    <option value="Sec A">Sec A</option>
-                    <option value="Sec B">Sec B</option>
-                    <option value="Sec C">Sec C</option>
+                    {filterGrade ? getSectionsForGrade(filterGrade).map((s: any) => <option key={s} value={s}>{s}</option>) : <option value="" disabled>Select Grade First</option>}
                   </select>
                   <select 
                     value={filterSession}
@@ -304,8 +313,8 @@ export default function GlobalAttendance() {
                             {record && usersMap[record.recordedBy] ? usersMap[record.recordedBy] : (record ? 'Unknown User' : '-')}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {record?.status === 'PRESENT' && <span className="text-emerald-600 font-bold text-sm">PRESENT</span>}
-                            {record?.status === 'ABSENT' && <span className="text-rose-600 font-bold text-sm">ABSENT</span>}
+                            {record?.status === 'PRESENT' && <span className="text-emerald-600 font-bold text-sm">P</span>}
+                            {record?.status === 'ABSENT' && <span className="text-rose-600 font-bold text-sm">A</span>}
                             {!record && <span className="text-slate-400 font-medium text-sm italic">Not Recorded</span>}
                           </td>
                         </tr>

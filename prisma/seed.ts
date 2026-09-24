@@ -148,6 +148,23 @@ async function main() {
   }
 
   console.log(`Created ${studentCount} Students.`);
+
+  // 4. Create SchoolClasses based on mockData
+  let classCount = 0;
+  for (const [grade, sections] of Object.entries(mockData.students)) {
+    for (const section of Object.keys(sections)) {
+      await prisma.schoolClass.create({
+        data: {
+          tenantId: tenant.id,
+          grade,
+          section,
+        }
+      });
+      classCount++;
+    }
+  }
+  console.log(`Created ${classCount} SchoolClasses.`);
+
   console.log('Seeding Complete!');
 }
 
