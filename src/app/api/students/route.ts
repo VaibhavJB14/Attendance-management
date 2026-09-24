@@ -75,18 +75,22 @@ export async function POST(request: Request) {
 
       if (!parentUser) {
         // Create new parent user
-        const hashedPassword = await bcrypt.hash(rollNumber, 10);
-        parentUser = await prisma.user.create({
-          data: {
-            tenantId,
-            email: parentPhone,
-            hashedPassword,
-            role: 'PARENT',
-            parentProfile: {
-              create: {}
+        try {
+          const hashedPassword = await bcrypt.hash(rollNumber, 10);
+          parentUser = await prisma.user.create({
+            data: {
+              tenantId,
+              email: parentPhone,
+              hashedPassword,
+              role: 'PARENT',
+              parentProfile: {
+                create: {}
+              }
             }
-          }
-        });
+          });
+        } catch (e: any) {
+           return NextResponse.json({ error: 'A user with this phone number already exists as a non-parent.' }, { status: 400 });
+        }
       }
 
       parentId = parentUser.id;

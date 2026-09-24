@@ -111,10 +111,17 @@ export default function Reports() {
         
         {/* Navigation Header */}
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Profile
-          </Link>
+          {(session?.role === 'SYSTEM_ADMIN' || session?.role === 'SCHOOL_ADMIN') ? (
+            <Link href="/admin/reports" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+              Back to Reports Hub
+            </Link>
+          ) : (
+            <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+              Back to Dashboard
+            </Link>
+          )}
           <button 
             onClick={downloadAll}
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2"

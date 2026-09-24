@@ -53,11 +53,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const day = parseInt(dayOfWeek, 10);
+    if (isNaN(day)) {
+       return NextResponse.json({ error: 'dayOfWeek must be a valid number' }, { status: 400 });
+    }
+
     // Check for overlaps unless forced
     if (!force) {
       // Check if teacher is busy
       const teacherBusy = await prisma.timetable.findFirst({
-        where: { tenantId: session.tenantId, teacherId, dayOfWeek, startTime }
+        where: { tenantId: session.tenantId, teacherId, dayOfWeek: day, startTime }
       });
       
       if (teacherBusy) {
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
 
       // Check if the class already has a period
       const classBusy = await prisma.timetable.findFirst({
-        where: { tenantId: session.tenantId, grade, section, dayOfWeek, startTime }
+        where: { tenantId: session.tenantId, grade, section, dayOfWeek: day, startTime }
       });
 
       if (classBusy) {
@@ -80,12 +85,14 @@ export async function POST(request: Request) {
       }
     }
 
+
+
     const timetable = await prisma.timetable.create({
       data: {
         tenantId: session.tenantId,
         grade,
         section,
-        dayOfWeek,
+        dayOfWeek: day,
         startTime,
         endTime,
         subject,

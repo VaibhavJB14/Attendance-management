@@ -139,6 +139,9 @@ export default function WardenAttendance() {
       setStudents(data.students);
       
       const initialMap: Record<string, string> = {};
+      data.students.forEach((student: any) => {
+        initialMap[student.id] = 'PRESENT';
+      });
       setAttendance(initialMap);
       setIsSearchOpen(false);
 
@@ -503,26 +506,18 @@ export default function WardenAttendance() {
                         <td className="px-6 py-4 font-medium text-slate-500">{student.rollNumber || '-'}</td>
                         <td className="px-6 py-4 font-medium text-slate-600">{student.grade} - {student.section}</td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end">
                             <button
-                              onClick={() => handleStatusChange(student.id, 'PRESENT')}
-                              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all border-2 ${
+                              onClick={() => handleStatusChange(student.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
+                              className={`px-6 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all border-2 w-28 ${
                                 status === 'PRESENT' 
-                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md scale-105' 
-                                  : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-500'
+                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' 
+                                  : status === 'ABSENT'
+                                  ? 'bg-rose-500 border-rose-500 text-white shadow-md'
+                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                               }`}
                             >
-                              P
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(student.id, 'ABSENT')}
-                              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all border-2 ${
-                                status === 'ABSENT' 
-                                  ? 'bg-rose-500 border-rose-500 text-white shadow-md scale-105' 
-                                  : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-500'
-                              }`}
-                            >
-                              A
+                              {status || 'PRESENT'}
                             </button>
                           </div>
                         </td>

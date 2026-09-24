@@ -46,6 +46,23 @@ export async function GET(request: Request) {
           // If no attendance record exists, or it's no longer ABSENT, cancel the notification
           if (!currentAttendance || currentAttendance.status !== 'ABSENT') {
             shouldSend = false;
+          } else {
+            // Check if the student has an excused absence permission for this date
+            // @ts-ignore
+            const isExcused = await prisma.excusedAbsence.findFirst({
+              where: {
+                studentId: notification.studentId,
+                date: {
+                  gte: new Date(new Date(notification.date).setUTCHours(0,0,0,0)),
+                  lte: new Date(new Date(notification.date).setUTCHours(23,59,59,999))
+                }
+              }
+            });
+
+            if (isExcused) {
+              shouldSend = false;
+              console.log(`[SMS SUPPRESSED] Notification for ${notification.studentId} cancelled due to ExcusedAbsence.`);
+            }
           }
         }
 

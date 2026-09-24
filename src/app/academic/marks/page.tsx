@@ -46,11 +46,13 @@ export default function AcademicMarks() {
   const [customSubject, setCustomSubject] = useState('');
   const [maxScore, setMaxScore] = useState('100');
   const [maxScores, setMaxScores] = useState<Record<string, string>>({});
+  const [examDate, setExamDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   // Master Gradebook Filters
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterExam, setFilterExam] = useState('All');
   const [filterSubject, setFilterSubject] = useState('All');
+  const [filterExamDate, setFilterExamDate] = useState('All');
   
   const [students, setStudents] = useState<Student[]>([]);
   const [marksMap, setMarksMap] = useState<Record<string, string>>({}); 
@@ -58,6 +60,7 @@ export default function AcademicMarks() {
   
   // Class Teacher Status
   const [isClassTeacher, setIsClassTeacher] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isSuperAdmin = session?.role === 'SYSTEM_ADMIN' || session?.role === 'SCHOOL_ADMIN';
 
   const [loading, setLoading] = useState(false);
@@ -122,7 +125,7 @@ export default function AcademicMarks() {
       let url = `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`;
       
       if (activeTab === 'single') {
-        url += `&examName=${encodeURIComponent(examName)}`;
+        url += `&examName=${encodeURIComponent(examName)}&examDate=${encodeURIComponent(examDate)}`;
         if (examCategory !== 'Competitive') {
           url += `&subject=${encodeURIComponent(finalSubject)}`;
         }
@@ -153,15 +156,6 @@ export default function AcademicMarks() {
                }
             }
           });
-        } else {
-           // Clear previous marks map if no marks were fetched for a new sheet load
-           // Only do this if they actually searched for an exam
-           const finalSubject = subject === 'Other' ? customSubject : subject;
-           if (examName && finalSubject) {
-               // No previous marks, keep it empty
-           } else {
-               // Clear everything because it's a fresh sheet
-           }
         }
         setMarksMap(newMarksMap);
       }
@@ -257,6 +251,7 @@ export default function AcademicMarks() {
           syllabusCoverage,
           subject: finalSubject,
           maxScore,
+          examDate,
           records
         })
       });
@@ -290,11 +285,12 @@ export default function AcademicMarks() {
     
     let hasMarks = false;
     uniqueTests.forEach(test => {
-      const [cat, name, sub] = test.split(' | ');
+      const [cat, name, sub, mDate] = test.split(' | ');
       const mark = studentMarks.find(m => 
         m.examName === name && 
         m.subject === sub &&
-        (m.examCategory || 'Custom') === cat
+        (m.examCategory || 'Custom') === cat &&
+        (mDate ? new Date(m.examDate).toISOString().split('T')[0] === mDate : true)
       );
 
       if (mark) {
@@ -343,6 +339,128 @@ export default function AcademicMarks() {
     }
   };
 
+  // Simple CSV parser that handles quoted strings
+  const parseCSVRow = (str: string) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === '"') {
+        inQuotes = !inQuotes;
+      } else if (str[i] === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += str[i];
+      }
+    }
+    result.push(current);
+    return result;
+  };
+
+  const downloadTemplate = () => {
+    if (students.length === 0) {
+      alert('Please load a class first before downloading a template.');
+      return;
+    }
+
+    const finalSubject = subject === 'Other' ? customSubject : subject;
+    let headers = ['Roll Number', 'Student Name'];
+    
+    if (examCategory === 'Competitive') {
+      const selectedMax = maxScores['PHYSICS'] || maxScore;
+      headers.push(`PHYSICS Score (Max: ${selectedMax})`);
+      headers.push(`CHEMISTRY Score (Max: ${maxScores['CHEMISTRY'] || maxScore})`);
+      headers.push(`MATHS Score (Max: ${maxScores['MATHS'] || maxScore})`);
+    } else {
+      headers.push(`${finalSubject} Score (Max: ${maxScore})`);
+    }
+
+    let csvContent = headers.join(',') + '\n';
+    
+    students.forEach(student => {
+      const row = [`"${student.rollNumber || ''}"`, `"${student.firstName} ${student.lastName}"`];
+      if (examCategory === 'Competitive') {
+        row.push('', '', ''); // Empty slots for scores
+      } else {
+        row.push(''); // Empty slot for score
+      }
+      csvContent += row.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    const safeSubject = examCategory === 'Competitive' ? 'Competitive' : finalSubject;
+    link.setAttribute('download', `Marks_Template_${grade}_${section}_${safeSubject}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) {
+        alert('Invalid CSV file or empty data.');
+        return;
+      }
+      
+      const headers = parseCSVRow(lines[0]);
+      
+      // Validation to ensure it's our template
+      if (!headers[0].includes('Roll Number') || !headers[1].includes('Student Name')) {
+        alert('Invalid template format. Please download the template and use it.');
+        return;
+      }
+
+      const newMarksMap = { ...marksMap };
+      const finalSubject = subject === 'Other' ? customSubject : subject;
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = parseCSVRow(lines[i]);
+        if (row.length < 3) continue;
+        
+        const rollNum = row[0].replace(/"/g, '').trim();
+        const student = students.find(s => s.rollNumber === rollNum);
+        
+        if (!student) continue;
+
+        if (examCategory === 'Competitive') {
+          // Expecting PHYSICS, CHEMISTRY, MATHS at index 2, 3, 4
+          const phy = row[2] ? row[2].replace(/"/g, '').trim() : '';
+          const chem = row[3] ? row[3].replace(/"/g, '').trim() : '';
+          const math = row[4] ? row[4].replace(/"/g, '').trim() : '';
+          
+          if (phy) newMarksMap[`${student.id}_PHYSICS`] = phy;
+          if (chem) newMarksMap[`${student.id}_CHEMISTRY`] = chem;
+          if (math) newMarksMap[`${student.id}_MATHS`] = math;
+        } else {
+          // Regular subject
+          const score = row[2] ? row[2].replace(/"/g, '').trim() : '';
+          if (score) newMarksMap[`${student.id}_${finalSubject}`] = score;
+        }
+      }
+      
+      setMarksMap(newMarksMap);
+      alert('CSV Data loaded into the grid! Please review and click Save Marks.');
+      
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const downloadCSV = (type: 'filtered' | 'all' = 'filtered') => {
     if (students.length === 0 || allMarks.length === 0) return;
     
@@ -352,7 +470,8 @@ export default function AcademicMarks() {
     } else {
       const tests = new Set<string>();
       allMarks.forEach(m => {
-        tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject}`);
+        const mDate = m.examDate ? new Date(m.examDate).toISOString().split('T')[0] : '';
+        tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject} | ${mDate}`);
       });
       testsToExport = Array.from(tests);
     }
@@ -362,8 +481,9 @@ export default function AcademicMarks() {
     // Header row
     const headers = ['Student Name', 'Roll Number'];
     testsToExport.forEach(test => {
-      const [cat, name, sub] = test.split(' | ');
-      headers.push(`${sub} - ${name} (${cat})`);
+      const [cat, name, sub, mDate] = test.split(' | ');
+      const dateStr = mDate ? ` [${mDate}]` : '';
+      headers.push(`${sub} - ${name} (${cat})${dateStr}`);
     });
     
     let csvContent = headers.join(',') + '\n';
@@ -373,12 +493,13 @@ export default function AcademicMarks() {
       const row = [`"${student.firstName} ${student.lastName}"`, `"${student.rollNumber || ''}"`];
       
       testsToExport.forEach(test => {
-        const [cat, name, sub] = test.split(' | ');
+        const [cat, name, sub, mDate] = test.split(' | ');
         const mark = allMarks.find(m => 
           m.studentId === student.id && 
           m.examName === name && 
           m.subject === sub &&
-          (m.examCategory || 'Custom') === cat
+          (m.examCategory || 'Custom') === cat &&
+          (mDate ? new Date(m.examDate).toISOString().split('T')[0] === mDate : true)
         );
         
         row.push(mark ? `"${mark.score}/${mark.maxScore}"` : '""');
@@ -403,15 +524,18 @@ export default function AcademicMarks() {
     const subjects = new Set<string>();
     const categories = new Set<string>();
     const exams = new Set<string>();
+    const examDates = new Set<string>();
     allMarks.forEach(m => {
       subjects.add(m.subject);
       if (m.examCategory) categories.add(m.examCategory);
       if (m.examName) exams.add(m.examName);
+      if (m.examDate) examDates.add(new Date(m.examDate).toISOString().split('T')[0]);
     });
     return { 
       subjects: Array.from(subjects), 
       categories: Array.from(categories),
-      exams: Array.from(exams) 
+      exams: Array.from(exams),
+      examDates: Array.from(examDates).sort((a,b) => b.localeCompare(a)) // sort descending
     };
   };
   const filterOptions = getFilterOptions();
@@ -423,8 +547,10 @@ export default function AcademicMarks() {
       const matchCat = filterCategory === 'All' || m.examCategory === filterCategory;
       const matchExam = filterExam === 'All' || m.examName === filterExam;
       const matchSub = filterSubject === 'All' || m.subject === filterSubject;
-      if (matchCat && matchExam && matchSub) {
-        tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject}`);
+      const mDate = m.examDate ? new Date(m.examDate).toISOString().split('T')[0] : '';
+      const matchDate = filterExamDate === 'All' || mDate === filterExamDate;
+      if (matchCat && matchExam && matchSub && matchDate) {
+        tests.add(`${m.examCategory || 'Custom'} | ${m.examName} | ${m.subject} | ${mDate}`);
       }
     });
     return Array.from(tests);
@@ -438,7 +564,21 @@ export default function AcademicMarks() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-8 mt-10">
-        
+        {/* Navigation Header */}
+        <div className="flex items-center justify-between mb-8">
+          {isSuperAdmin ? (
+            <Link href="/admin/reports" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+              Back to Reports Hub
+            </Link>
+          ) : (
+            <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+              Back to Dashboard
+            </Link>
+          )}
+        </div>
+
         {/* Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
@@ -506,7 +646,39 @@ export default function AcademicMarks() {
             {/* Single Test Extended Controls */}
             {activeTab === 'single' && (
               <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-wrap gap-4 items-center">
-                <div className="w-full text-xs font-bold text-indigo-600 uppercase tracking-wider">Test Details</div>
+                <div className="w-full flex justify-between items-center">
+                  <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Test Details</div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={downloadTemplate}
+                      title="Download CSV Template"
+                      className="bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors"
+                    >
+                      <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                      Template
+                    </button>
+                    
+                    <label className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 cursor-pointer px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors">
+                      <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                      Upload CSV
+                      <input 
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={handleCSVUpload}
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-4">Exam Conduct Date</label>
+                    <input 
+                      type="date"
+                      value={examDate}
+                      onChange={(e) => { setExamDate(e.target.value); setHasSearched(false); }}
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-1.5 shadow-sm font-semibold"
+                    />
+                  </div>
+                </div>
                 
                 <select 
                   value={examCategory}
@@ -641,6 +813,20 @@ export default function AcademicMarks() {
                      ))}
                    </select>
                  </div>
+                 
+                 <div className="flex items-center gap-2">
+                   <label className="text-sm font-semibold text-slate-600">Exam Date:</label>
+                   <select 
+                     value={filterExamDate}
+                     onChange={(e) => setFilterExamDate(e.target.value)}
+                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
+                   >
+                     <option value="All">All Dates</option>
+                     {filterOptions.examDates.map(d => (
+                       <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
+                     ))}
+                   </select>
+                 </div>
                </div>
             )}
           </div>
@@ -667,7 +853,7 @@ export default function AcademicMarks() {
         )}
 
         {/* Single Test Input Grid */}
-        {activeTab === 'single' && students.length > 0 && (
+        {activeTab === 'single' && students.length > 0 && hasSearched && (
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mt-8">
             <div className="p-6 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
@@ -795,7 +981,7 @@ export default function AcademicMarks() {
         )}
 
         {/* Master Gradebook Grid */}
-        {activeTab === 'master' && students.length > 0 && (
+        {activeTab === 'master' && students.length > 0 && hasSearched && (
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mt-8">
             <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center flex-wrap gap-4">
               <div>

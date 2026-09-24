@@ -41,16 +41,27 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create attendance records efficiently using createMany
-    const results = await prisma.attendance.createMany({
-      data: records.map((record) => ({
-        studentId: record.studentId,
-        date: attendanceDate,
-        sessionName: sessionName,
-        status: record.status,
-        recordedBy: userId,
-      }))
-    });
+    const studentIds = records.map(r => r.studentId);
+    
+    // Prevent duplicates by deleting existing records for these students, date, and session first
+    const [_, results] = await prisma.$transaction([
+      prisma.attendance.deleteMany({
+        where: {
+          studentId: { in: studentIds },
+          date: attendanceDate,
+          sessionName: sessionName
+        }
+      }),
+      prisma.attendance.createMany({
+        data: records.map((record) => ({
+          studentId: record.studentId,
+          date: attendanceDate,
+          sessionName: sessionName,
+          status: record.status,
+          recordedBy: userId,
+        }))
+      })
+    ]);
 
     // Queue SMS Sending for ABSENT students
     const absentRecords = records.filter(r => r.status === 'ABSENT');

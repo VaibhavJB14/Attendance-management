@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     const section = searchParams.get('section');
     const examName = searchParams.get('examName');
     const subject = searchParams.get('subject');
+    const examDate = searchParams.get('examDate');
 
     // First get the students
     const students = await prisma.student.findMany({
@@ -33,12 +34,18 @@ export async function GET(request: Request) {
 
     // Then get the marks if specific exam/subject provided
     let marks: any[] = [];
-    if (examName && subject) {
+    if (examName) {
       marks = await prisma.mark.findMany({
         where: {
           studentId: { in: studentIds },
           examName,
-          subject
+          ...(subject && { subject }),
+          ...(examDate && {
+            examDate: {
+              gte: new Date(new Date(examDate).setUTCHours(0,0,0,0)),
+              lte: new Date(new Date(examDate).setUTCHours(23,59,59,999))
+            }
+          })
         }
       });
     } else {
@@ -72,10 +79,22 @@ export async function POST(request: Request) {
     // Plan restriction removed
 
     const body = await request.json();
-    const { examName, examCategory, syllabusCoverage, subject, maxScore, records } = body;
+    const { examName, examCategory, syllabusCoverage, subject, maxScore, examDate, records } = body;
 
     if (!examName || !examCategory || !subject || !maxScore || !records || !Array.isArray(records)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    
+    // Parse examDate, default to today
+    const parsedExamDate = examDate ? new Date(examDate) : new Date();
+    parsedExamDate.setUTCHours(12, 0, 0, 0);
+    
+    for (const record of records) {
+      const recordMaxScore = Number(record.maxScore || maxScore);
+      const score = Number(record.score);
+      if (isNaN(score) || score < 0 || score > recordMaxScore) {
+        return NextResponse.json({ error: `Invalid score ${record.score} for max score ${recordMaxScore}` }, { status: 400 });
+      }
     }
     
     const operations = records.map(record => {
@@ -85,7 +104,12 @@ export async function POST(request: Request) {
         where: {
           studentId: record.studentId,
           examName: examName,
-          subject: recordSubject
+          subject: recordSubject,
+          // @ts-ignore
+          examDate: {
+            gte: new Date(new Date(parsedExamDate).setUTCHours(0,0,0,0)),
+            lte: new Date(new Date(parsedExamDate).setUTCHours(23,59,59,999))
+          }
         }
       }).then(existing => {
         if (existing) {
@@ -96,16 +120,20 @@ export async function POST(request: Request) {
               maxScore: Number(recordMaxScore), 
               examCategory: examCategory,
               syllabusCoverage: syllabusCoverage,
+              // @ts-ignore
+              examDate: parsedExamDate,
               recordedAt: new Date() 
             }
           });
         } else {
+          // @ts-ignore
           return prisma.mark.create({
             data: {
               studentId: record.studentId,
               examName: examName,
               examCategory: examCategory,
               syllabusCoverage: syllabusCoverage,
+              examDate: parsedExamDate,
               subject: recordSubject,
               score: Number(record.score),
               maxScore: Number(recordMaxScore),

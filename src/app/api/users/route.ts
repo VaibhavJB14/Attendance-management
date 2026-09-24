@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const userData: any = {
       tenantId,
       email,
-      hashedPassword: password, // Plaintext for demo purposes
+      hashedPassword, 
       role
     };
 

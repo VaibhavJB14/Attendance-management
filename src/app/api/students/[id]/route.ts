@@ -34,6 +34,21 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
+    if (isHosteler && hostelName && roomNumber) {
+      // Check room capacity
+      const room = await prisma.room.findFirst({
+        where: { tenantId, hostelName, roomNumber }
+      });
+      if (room) {
+        const currentOccupants = await prisma.student.count({
+          where: { tenantId, hostelName, roomNumber, isHosteler: true }
+        });
+        if (currentOccupants >= room.capacity && existingStudent.roomNumber !== roomNumber) {
+          return NextResponse.json({ error: `Room ${roomNumber} is at full capacity.` }, { status: 400 });
+        }
+      }
+    }
+
     const updatedStudent = await prisma.student.update({
       where: {
         id: studentId

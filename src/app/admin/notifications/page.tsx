@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Notification {
   id: string;
@@ -102,6 +103,14 @@ export default function NotificationsDashboard() {
     <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8 mt-10">
         
+        {/* Navigation */}
+        <div className="flex items-center justify-between">
+          <Link href="/admin/reports" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+            Back to Reports Hub
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">

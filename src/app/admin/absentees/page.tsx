@@ -93,10 +93,10 @@ export default function AbsenteesList() {
       <div className="max-w-6xl mx-auto space-y-8 mt-10">
         
         {/* Navigation Header */}
-        <div className="flex items-center justify-between">
-          <Link href="/admin" className="flex items-center text-violet-600 font-semibold hover:text-violet-800 transition-colors">
+        <div className="flex items-center justify-between mb-8">
+          <Link href="/admin/reports" className="flex items-center text-violet-600 font-semibold hover:text-violet-800 transition-colors">
             <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Admin Hub
+            Back to Reports Hub
           </Link>
           <div className="px-4 py-1.5 bg-violet-100 text-violet-800 rounded-full text-xs font-bold uppercase tracking-wider border border-violet-200 shadow-sm flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse"></div>

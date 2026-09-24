@@ -201,10 +201,10 @@ export default function DataManagement() {
       <div className="max-w-6xl mx-auto space-y-8 mt-10">
         
         {/* Navigation */}
-        <div className="flex items-center justify-between">
-          <Link href="/admin" className="flex items-center text-amber-600 font-semibold hover:text-amber-800 transition-colors">
+        <div className="flex items-center justify-between mb-8">
+          <Link href="/admin/extra-features" className="flex items-center text-amber-600 font-semibold hover:text-amber-800 transition-colors">
             <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Admin Hub
+            Back to Extra Features Hub
           </Link>
         </div>
 

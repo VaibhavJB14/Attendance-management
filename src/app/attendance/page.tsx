@@ -86,6 +86,11 @@ export default function Home() {
       let initialState: Record<string, string> = {};
       let locked = false;
 
+      // Default all students to PRESENT
+      data.students.forEach((student: any) => {
+        initialState[student.id] = 'PRESENT';
+      });
+
       const todayStr = new Date().toISOString().split('T')[0];
       const attRes = await fetch(`/api/attendance?date=${todayStr}&grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}&sessionName=${encodeURIComponent(sessionName)}`, {
         headers: { 'x-tenant-id': session.tenantId }
@@ -378,28 +383,19 @@ export default function Home() {
                           </div>
                         </td>
                         <td className="px-6 py-5 text-right">
-                          <div className="flex justify-end gap-3">
+                          <div className="flex justify-end">
                             <button
                               disabled={isAttendanceLocked}
-                              onClick={() => handleStatusChange(student.id, 'PRESENT')}
-                              className={`px-5 py-2.5 rounded-lg font-bold text-base transition-all border-2 ${
+                              onClick={() => handleStatusChange(student.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
+                              className={`px-6 py-2.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all border-2 w-32 ${
                                 status === 'PRESENT' 
-                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md scale-105' 
-                                  : isAttendanceLocked ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-500'
+                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' 
+                                  : status === 'ABSENT'
+                                  ? 'bg-rose-500 border-rose-500 text-white shadow-md'
+                                  : isAttendanceLocked ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                               }`}
                             >
-                              P
-                            </button>
-                            <button
-                              disabled={isAttendanceLocked}
-                              onClick={() => handleStatusChange(student.id, 'ABSENT')}
-                              className={`px-5 py-2.5 rounded-lg font-bold text-base transition-all border-2 ${
-                                status === 'ABSENT' 
-                                  ? 'bg-rose-500 border-rose-500 text-white shadow-md scale-105' 
-                                  : isAttendanceLocked ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-500'
-                              }`}
-                            >
-                              A
+                              {status || 'PRESENT'}
                             </button>
                           </div>
                         </td>
