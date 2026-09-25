@@ -38,6 +38,7 @@ export default function GlobalAttendance() {
   const [usersMap, setUsersMap] = useState<Record<string, string>>({});
   
   // Filters
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filterSession, setFilterSession] = useState('');
@@ -95,9 +96,8 @@ export default function GlobalAttendance() {
           setStudents(stuData.students);
         }
 
-        // 3. Fetch today's attendance map with filters
-        const today = new Date().toISOString().split('T')[0];
-        let url = `/api/attendance?date=${today}`;
+        // 3. Fetch attendance map with filters
+        let url = `/api/attendance?date=${filterDate}`;
         if (filterGrade) url += `&grade=${encodeURIComponent(filterGrade)}`;
         if (filterSection) url += `&section=${encodeURIComponent(filterSection)}`;
         if (filterSession) url += `&sessionName=${encodeURIComponent(filterSession)}`;
@@ -135,7 +135,7 @@ export default function GlobalAttendance() {
     };
 
     fetchData();
-  }, [router, filterGrade, filterSection, filterSession]);
+  }, [router, filterGrade, filterSection, filterSession, filterDate]);
 
   if (!session) return null;
 
@@ -145,7 +145,30 @@ export default function GlobalAttendance() {
     return true;
   });
 
-  const attendanceRate = filteredStudents.length === 0 ? 0 : Math.round(((filteredStudents.length - absenteesCount) / filteredStudents.length) * 100);
+  let presentCount = 0;
+  let absentCount = 0;
+  let notRecordedCount = 0;
+
+  filteredStudents.forEach(s => {
+    const record = attendanceMap[s.id];
+    if (record) {
+      if (record.status === 'PRESENT') {
+        presentCount++;
+      } else if (record.status === 'ABSENT') {
+        absentCount++;
+      }
+    } else {
+      notRecordedCount++;
+    }
+  });
+
+  const totalFiltered = filteredStudents.length;
+  const presentPercent = totalFiltered > 0 ? Math.round((presentCount / totalFiltered) * 100) : 0;
+  const absentPercent = totalFiltered > 0 ? Math.round((absentCount / totalFiltered) * 100) : 0;
+  const notRecordedPercent = totalFiltered > 0 ? Math.round((notRecordedCount / totalFiltered) * 100) : 0;
+
+  // The KPI Attendance Rate usually means Present / Total Recorded, or Present / Total Enrolled. We'll use Present / Total Enrolled.
+  const attendanceRate = presentPercent;
 
   // Compute Missing Classes
   const classesMap: Record<string, Student[]> = {};
@@ -190,6 +213,44 @@ export default function GlobalAttendance() {
           </p>
         </div>
 
+        {/* Global Filters */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center">
+          <input 
+            type="date"
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 p-2 font-semibold"
+          />
+          <select 
+            value={filterGrade}
+            onChange={e => setFilterGrade(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 p-2 font-semibold"
+          >
+            <option value="">All Grades</option>
+            {uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select 
+            value={filterSection}
+            onChange={e => setFilterSection(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 p-2 font-semibold"
+          >
+            <option value="">All Sections</option>
+            {filterGrade ? getSectionsForGrade(filterGrade).map((s: any) => <option key={s} value={s}>{s}</option>) : <option value="" disabled>Select Grade First</option>}
+          </select>
+          <select 
+            value={filterSession}
+            onChange={e => setFilterSession(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 p-2 font-semibold"
+          >
+            <option value="">All Sessions</option>
+            <option value="Morning (8-12)">Morning (8-12)</option>
+            <option value="Afternoon (12-3)">Afternoon (12-3)</option>
+            <option value="Evening (3-6)">Evening (3-6)</option>
+            <option value="Hostel Morning">Hostel Morning</option>
+            <option value="Hostel Night">Hostel Night</option>
+          </select>
+        </div>
+
         {loading ? (
           <div className="p-16 flex justify-center items-center space-x-2">
             <div className="w-3 h-3 bg-rose-500 rounded-full animate-bounce"></div>
@@ -202,15 +263,62 @@ export default function GlobalAttendance() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200">
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Enrolled</p>
-                <p className="text-4xl font-black text-slate-800 mt-2">{filteredStudents.length}</p>
+                <p className="text-4xl font-black text-slate-800 mt-2">{totalFiltered}</p>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200">
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Today's Absentees</p>
-                <p className="text-4xl font-black text-rose-600 mt-2">{absenteesCount}</p>
+                <p className="text-4xl font-black text-rose-600 mt-2">{absentCount}</p>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200">
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Attendance Rate</p>
                 <p className="text-4xl font-black text-emerald-600 mt-2">{attendanceRate}%</p>
+              </div>
+            </div>
+
+            {/* Attendance Graph Section */}
+            <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4">Attendance Overview</h3>
+              <div className="w-full h-8 flex rounded-xl overflow-hidden shadow-inner bg-slate-100">
+                {totalFiltered > 0 ? (
+                  <>
+                    <div 
+                      className="bg-emerald-500 flex items-center justify-center text-xs font-bold text-white transition-all duration-500" 
+                      style={{ width: `${presentPercent}%` }}
+                      title={`Present: ${presentCount}`}
+                    >
+                      {presentPercent > 10 ? `${presentPercent}%` : ''}
+                    </div>
+                    <div 
+                      className="bg-rose-500 flex items-center justify-center text-xs font-bold text-white transition-all duration-500" 
+                      style={{ width: `${absentPercent}%` }}
+                      title={`Absent: ${absentCount}`}
+                    >
+                      {absentPercent > 10 ? `${absentPercent}%` : ''}
+                    </div>
+                    <div 
+                      className="bg-slate-300 flex items-center justify-center text-xs font-bold text-slate-700 transition-all duration-500" 
+                      style={{ width: `${notRecordedPercent}%` }}
+                      title={`Not Recorded: ${notRecordedCount}`}
+                    >
+                      {notRecordedPercent > 10 ? `${notRecordedPercent}%` : ''}
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full flex items-center justify-center text-slate-400 text-xs font-medium">No Data</div>
+                )}
+              </div>
+              <div className="flex justify-between items-center mt-3 text-sm font-semibold">
+                <div className="flex gap-4">
+                  <div className="text-emerald-600 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div> Present: {presentCount}
+                  </div>
+                  <div className="text-slate-500 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-slate-300"></div> Not Recorded: {notRecordedCount}
+                  </div>
+                </div>
+                <div className="text-rose-600 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-500"></div> Absent: {absentCount}
+                </div>
               </div>
             </div>
 
@@ -238,36 +346,6 @@ export default function GlobalAttendance() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">Master Student Roster</h2>
                   <p className="text-sm text-slate-500 mt-1">Every student currently enrolled in the system.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <select 
-                    value={filterGrade}
-                    onChange={e => setFilterGrade(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 block p-2"
-                  >
-                    <option value="">All Grades</option>
-                    {uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                  <select 
-                    value={filterSection}
-                    onChange={e => setFilterSection(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 block p-2"
-                  >
-                    <option value="">All Sections</option>
-                    {filterGrade ? getSectionsForGrade(filterGrade).map((s: any) => <option key={s} value={s}>{s}</option>) : <option value="" disabled>Select Grade First</option>}
-                  </select>
-                  <select 
-                    value={filterSession}
-                    onChange={e => setFilterSession(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-rose-500 focus:border-rose-500 block p-2"
-                  >
-                    <option value="">All Sessions</option>
-                    <option value="Morning (8-12)">Morning (8-12)</option>
-                    <option value="Afternoon (12-3)">Afternoon (12-3)</option>
-                    <option value="Evening (3-6)">Evening (3-6)</option>
-                    <option value="Hostel Morning">Hostel Morning</option>
-                    <option value="Hostel Night">Hostel Night</option>
-                  </select>
                 </div>
               </div>
               

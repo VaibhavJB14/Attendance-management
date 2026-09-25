@@ -103,6 +103,8 @@ export default function TimetableAdmin() {
 
   const fetchData = async (tenantId: string, g: string, s: string) => {
     setLoading(true);
+    setRequirements([]);
+    setTimetable([]);
     try {
       const tsRes = await fetch(`/api/timeslots`, { headers: { 'x-tenant-id': tenantId }});
       const tsData = await tsRes.json();
@@ -189,6 +191,24 @@ export default function TimetableAdmin() {
       });
       if (!res.ok) throw new Error('Failed to delete');
       setMessage({ type: 'success', text: 'Timeslot removed.' });
+      fetchData(session.tenantId, grade, section);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRequirement = async (id: string) => {
+    if (!session) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/timetable/requirements?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'x-tenant-id': session.tenantId }
+      });
+      if (!res.ok) throw new Error('Failed to delete requirement');
+      setMessage({ type: 'success', text: 'Requirement removed.' });
       fetchData(session.tenantId, grade, section);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
@@ -461,6 +481,7 @@ export default function TimetableAdmin() {
                         <th className="px-6 py-4">Subject</th>
                         <th className="px-6 py-4 text-center">Periods / Week</th>
                         <th className="px-6 py-4">Teacher</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -469,9 +490,12 @@ export default function TimetableAdmin() {
                           <td className="px-6 py-4 font-bold text-slate-800">{req.subject}</td>
                           <td className="px-6 py-4 font-semibold text-indigo-600 text-center">{req.periodsPerWeek}</td>
                           <td className="px-6 py-4 font-medium text-slate-500">{req.teacher?.user?.email || req.teacherId}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => handleDeleteRequirement(req.id)} className="text-red-500 hover:text-red-700 font-semibold text-sm">Remove</button>
+                          </td>
                         </tr>
                       )) : (
-                        <tr><td colSpan={3} className="px-6 py-8 text-center text-slate-400 italic">No course requirements set yet.</td></tr>
+                        <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No course requirements set yet.</td></tr>
                       )}
                     </tbody>
                   </table>

@@ -448,7 +448,12 @@ export default function AcademicMarks() {
         if (row.length < 3) continue;
         
         const rollNum = row[0].replace(/"/g, '').trim();
-        const student = students.find(s => s.rollNumber === rollNum);
+        const studentName = row[1].replace(/"/g, '').trim();
+        
+        const student = students.find(s => 
+          (rollNum && s.rollNumber === rollNum) || 
+          `${s.firstName} ${s.lastName}`.trim() === studentName
+        );
         
         if (!student) continue;
 
