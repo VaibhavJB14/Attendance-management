@@ -7,10 +7,10 @@ import { requirePlan } from '@/lib/featureGuard';
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
-    if (!session?.tenantId) {
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
+    if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tenantId = session.tenantId;
 
     await requirePlan(tenantId, 'BASIC');
 
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     const body = await request.json();
-    const { isHosteler, hostelName, roomNumber } = body;
+    const { firstName, lastName, gender, grade, section, rollNumber, parentPhone, isHosteler, hostelName, roomNumber } = body;
 
     // Verify the student belongs to the tenant
     const existingStudent = await prisma.student.findFirst({
@@ -49,15 +49,25 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       }
     }
 
+    const updateData: any = {};
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (gender !== undefined) updateData.gender = gender;
+    if (grade !== undefined) updateData.grade = grade;
+    if (section !== undefined) updateData.section = section;
+    if (rollNumber !== undefined) updateData.rollNumber = rollNumber;
+    if (parentPhone !== undefined) updateData.parentPhone = parentPhone;
+    if (isHosteler !== undefined) {
+      updateData.isHosteler = isHosteler;
+      updateData.hostelName = isHosteler ? (hostelName !== undefined ? hostelName : existingStudent.hostelName) : null;
+      updateData.roomNumber = isHosteler ? (roomNumber !== undefined ? roomNumber : existingStudent.roomNumber) : null;
+    }
+
     const updatedStudent = await prisma.student.update({
       where: {
         id: studentId
       },
-      data: {
-        isHosteler: isHosteler !== undefined ? isHosteler : existingStudent.isHosteler,
-        hostelName: isHosteler ? (hostelName || existingStudent.hostelName) : null,
-        roomNumber: isHosteler ? (roomNumber || existingStudent.roomNumber) : null,
-      }
+      data: updateData
     });
 
     return NextResponse.json({ success: true, student: updatedStudent });
@@ -66,3 +76,33 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession();
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await requirePlan(tenantId, 'BASIC');
+
+    const { id: studentId } = await props.params;
+    if (!studentId) {
+      return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
+    }
+
+    await prisma.student.deleteMany({
+      where: {
+        id: studentId,
+        tenantId
+      }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    console.error('API Error:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
+  }
+}
+

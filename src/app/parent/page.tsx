@@ -189,7 +189,7 @@ export default function ParentPortal() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
+    <main className="min-h-screen bg-white text-slate-900 p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8 mt-10">
         
         {/* Header */}

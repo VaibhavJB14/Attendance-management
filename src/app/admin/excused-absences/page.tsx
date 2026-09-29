@@ -39,7 +39,7 @@ export default function ExcusedAbsencesPage() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +47,7 @@ export default function ExcusedAbsencesPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  
+
   // List State
   const [absences, setAbsences] = useState<ExcusedAbsence[]>([]);
 
@@ -129,7 +129,7 @@ export default function ExcusedAbsencesPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to grant permission');
-      
+
       setReason('');
       setSelectedStudent(null);
       setSearchQuery('');
@@ -159,32 +159,24 @@ export default function ExcusedAbsencesPage() {
     }
   };
 
-  const filteredStudents = searchQuery.length > 2 
-    ? students.filter(s => 
-        `${s.firstName} ${s.lastName} ${s.rollNumber || ''}`.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+  const filteredStudents = searchQuery.length > 2
+    ? students.filter(s =>
+      `${s.firstName} ${s.lastName} ${s.rollNumber || ''}`.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : [];
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col">
-      <div className="flex-1 max-w-6xl mx-auto w-full p-6 md:p-8 mt-2 md:mt-6">
-        
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/admin/reports" className="flex items-center text-amber-600 font-semibold hover:text-amber-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Reports Hub
-          </Link>
-        </div>
+    <div className="min-h-screen flex flex-col font-sans pl-0 md:pl-8 pb-12">
+      <div className="flex-1  w-full max-w-6xl ">
 
         {/* Large Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden mb-8">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-             <svg className="w-48 h-48 text-amber-600" fill="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <svg className="w-48 h-48 text-amber-600" fill="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           </div>
-          
+
           <div className="relative z-10">
             <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
               Excused Absences
@@ -196,12 +188,12 @@ export default function ExcusedAbsencesPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* Grant Permission Form */}
           <div className="lg:col-span-1">
             <div className="bg-white p-6 rounded-3xl shadow-md border border-slate-200">
               <h2 className="text-xl font-bold text-slate-800 mb-6">Grant Permission</h2>
-              
+
               <form onSubmit={handleGrantPermission} className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Date</label>
@@ -226,14 +218,14 @@ export default function ExcusedAbsencesPage() {
                     }}
                     className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-amber-500 focus:border-amber-500"
                   />
-                  
+
                   {searchQuery.length > 2 && !selectedStudent && (
                     <div className="absolute z-10 mt-1 w-full bg-white shadow-xl border border-slate-200 rounded-lg max-h-60 overflow-auto">
                       {filteredStudents.length > 0 ? (
                         <ul className="divide-y divide-slate-100">
                           {filteredStudents.map(student => (
-                            <li 
-                              key={student.id} 
+                            <li
+                              key={student.id}
                               onClick={() => {
                                 setSelectedStudent(student);
                                 setSearchQuery(`${student.firstName} ${student.lastName}`);
@@ -349,7 +341,7 @@ export default function ExcusedAbsencesPage() {
               )}
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>

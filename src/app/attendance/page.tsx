@@ -25,7 +25,7 @@ interface UserSession {
 export default function Home() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
-  
+
   // Filters
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
@@ -35,7 +35,7 @@ export default function Home() {
   // Dynamic Class Options
   const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
   const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
-  
+
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceState, setAttendanceState] = useState<Record<string, string>>({}); // { studentId: 'PRESENT' | 'ABSENT' }
   const [loading, setLoading] = useState(false);
@@ -53,15 +53,15 @@ export default function Home() {
       return;
     }
     const user = JSON.parse(stored);
-    
+
     // Wardens cannot access classroom attendance
     if (user.role === 'WARDEN') {
       router.push('/warden');
       return;
     }
-    
+
     setSession(user);
-    
+
     // Optionally default to the teacher's domain if they have one, 
     // but for now we just use the default state values.
   }, [router]);
@@ -71,16 +71,16 @@ export default function Home() {
       fetch('/api/classes', {
         headers: { 'x-tenant-id': session.tenantId }
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.classes) setSchoolClasses(data.classes);
-      })
-      .catch(console.error);
+        .then(res => res.json())
+        .then(data => {
+          if (data.classes) setSchoolClasses(data.classes);
+        })
+        .catch(console.error);
     }
   }, [session]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const { isHoliday, name: holidayName } = checkIsHoliday();
 
   // Fetch Students based on Filters
@@ -89,7 +89,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
-    
+
     try {
       const response = await fetch(`/api/students?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`, {
         headers: { 'x-tenant-id': session.tenantId }
@@ -99,7 +99,7 @@ export default function Home() {
 
       const data = await response.json();
       setStudents(data.students);
-      
+
       // Check if attendance already marked today
       let initialState: Record<string, string> = {};
       let locked = false;
@@ -125,7 +125,7 @@ export default function Home() {
 
       setAttendanceState(initialState);
       setIsAttendanceLocked(locked);
-      
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -150,7 +150,7 @@ export default function Home() {
 
   const submitAttendance = async () => {
     if (!session) return;
-    
+
     if (Object.keys(attendanceState).length !== students.length) {
       setError('Please mark attendance for all students.');
       return;
@@ -183,7 +183,7 @@ export default function Home() {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to submit attendance');
-      
+
       setSuccessMsg(`Successfully saved attendance for ${records.length} students. Sent ${data.smsSentCount || 0} automated SMS notifications.`);
       if (data.smsLogs && data.smsLogs.length > 0) {
         setSmsLogs(data.smsLogs);
@@ -203,27 +203,32 @@ export default function Home() {
   if (!session) return null; // Wait for redirect
 
   // Filter students based on search query
-  const filteredStudents = students.filter(student => 
+  const filteredStudents = students.filter(student =>
     `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const currentHour = new Date().getHours();
   let isSessionActive = false;
-  if (sessionName === "Morning (8-12)" && currentHour >= 8 && currentHour < 12) isSessionActive = true;
-  else if (sessionName === "Afternoon (12-3)" && currentHour >= 12 && currentHour < 15) isSessionActive = true;
-  else if (sessionName === "Evening (3-6)" && currentHour >= 15 && currentHour < 18) isSessionActive = true;
+  let isSessionExpired = false;
+
+  if (sessionName === "Morning (8-12)") {
+    if (currentHour >= 8 && currentHour < 12) isSessionActive = true;
+    if (currentHour >= 12) isSessionExpired = true;
+  } else if (sessionName === "Afternoon (12-3)") {
+    if (currentHour >= 12 && currentHour < 15) isSessionActive = true;
+    if (currentHour >= 15) isSessionExpired = true;
+  } else if (sessionName === "Evening (3-6)") {
+    if (currentHour >= 15 && currentHour < 18) isSessionActive = true;
+    if (currentHour >= 18) isSessionExpired = true;
+  }
+
+  // Admins can override, but teachers are strictly restricted by session time
+  const isTeacherRole = session.role === 'TEACHER';
+  const isBlockedBySession = isTeacherRole && (!isSessionActive || isSessionExpired);
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-8 font-sans selection:bg-indigo-500/30">
+    <main className="pl-0 md:pl-8 pb-12 font-sans selection:bg-indigo-500/30">
       <div className="max-w-6xl mx-auto space-y-8">
-        
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Profile
-          </Link>
-        </div>
 
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200">
@@ -240,12 +245,6 @@ export default function Home() {
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">{session.plan} Plan</span>
             </div>
-            <button 
-              onClick={handleLogout}
-              className="px-4 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors border border-transparent hover:border-slate-200"
-            >
-              Sign out
-            </button>
           </div>
         </header>
 
@@ -254,8 +253,8 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full xl:flex-1">
             <div className="w-full">
               <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-2">Grade / Year</label>
-              <select 
-                value={grade} 
+              <select
+                value={grade}
                 onChange={(e) => setGrade(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-base rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block py-2.5 px-3"
               >
@@ -269,8 +268,8 @@ export default function Home() {
             </div>
             <div className="w-full">
               <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-2">Session</label>
-              <select 
-                value={sessionName} 
+              <select
+                value={sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
                 className="w-full bg-indigo-50 border border-indigo-200 text-indigo-800 font-semibold text-base rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block py-2.5 px-3"
               >
@@ -282,8 +281,8 @@ export default function Home() {
             </div>
             <div className="w-full">
               <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-2">Section</label>
-              <select 
-                value={section} 
+              <select
+                value={section}
                 onChange={(e) => setSection(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-base rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block py-2.5 px-3"
               >
@@ -297,8 +296,8 @@ export default function Home() {
             </div>
             <div className="w-full">
               <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-2">Search Student</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search by name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -306,13 +305,23 @@ export default function Home() {
               />
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={submitAttendance}
-            disabled={submitting || loading || students.length === 0 || isAttendanceLocked || !isSessionActive || isHoliday}
-            className="w-full xl:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-base font-semibold rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
+            disabled={submitting || loading || students.length === 0 || isAttendanceLocked || isBlockedBySession || isHoliday}
+            className="w-full xl:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-base font-semibold rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
           >
-            {submitting ? 'Saving...' : isAttendanceLocked ? 'Attendance Locked' : !isSessionActive ? 'Session Inactive' : isHoliday ? 'Holiday' : 'Submit Attendance'}
+            {submitting
+              ? 'Saving...'
+              : isAttendanceLocked
+                ? 'Attendance Locked'
+                : isSessionExpired && isTeacherRole
+                  ? 'Session Expired'
+                  : !isSessionActive && isTeacherRole
+                    ? 'Session Inactive'
+                    : isHoliday
+                      ? 'Holiday'
+                      : 'Submit Attendance'}
           </button>
         </div>
 
@@ -338,9 +347,17 @@ export default function Home() {
             Attendance for this session has already been marked and is locked. It cannot be edited.
           </div>
         )}
-        {!isAttendanceLocked && sessionName && !isSessionActive && !isHoliday && (
+        {!isAttendanceLocked && sessionName && isSessionExpired && isTeacherRole && (
+          <div className="p-4 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-sm font-bold flex items-center gap-2 shadow-xs">
+            <svg className="w-5 h-5 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Attendance Window Closed: The time for this session has ended. Teachers are not allowed to mark or modify attendance after their respective session time.</span>
+          </div>
+        )}
+        {!isAttendanceLocked && sessionName && !isSessionActive && !isSessionExpired && isTeacherRole && !isHoliday && (
           <div className="p-4 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-sm font-medium">
-            This session is not currently active. You can only mark attendance during the scheduled hours.
+            This session is not currently active. Teachers can only mark attendance during the scheduled session hours.
           </div>
         )}
 
@@ -390,8 +407,8 @@ export default function Home() {
                   {filteredStudents.map((student) => {
                     const status = attendanceState[student.id];
                     return (
-                      <tr 
-                        key={student.id} 
+                      <tr
+                        key={student.id}
                         className={`transition-colors duration-150 ${status === 'PRESENT' ? 'hover:bg-slate-50' : 'bg-red-50/40 hover:bg-red-50/80'}`}
                       >
                         <td className="px-6 py-4">
@@ -407,15 +424,14 @@ export default function Home() {
                         <td className="px-6 py-5 text-right">
                           <div className="flex justify-end">
                             <button
-                              disabled={isAttendanceLocked}
+                              disabled={isAttendanceLocked || isBlockedBySession}
                               onClick={() => handleStatusChange(student.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
-                              className={`px-6 py-2.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all border-2 w-32 ${
-                                status === 'PRESENT' 
-                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' 
-                                  : status === 'ABSENT'
+                              className={`px-6 py-2.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all border-2 w-32 ${status === 'PRESENT'
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                                : status === 'ABSENT'
                                   ? 'bg-rose-500 border-rose-500 text-white shadow-md'
-                                  : isAttendanceLocked ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                              }`}
+                                  : (isAttendanceLocked || isBlockedBySession) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                }`}
                             >
                               {status === 'ABSENT' ? 'A' : 'P'}
                             </button>

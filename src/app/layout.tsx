@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AutoLogout from "@/components/AutoLogout";
 import Navbar from "@/components/Navbar";
+import MainWrapper from "@/components/MainWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,20 +16,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "School ERP - Attendance",
-  description: "Manage student attendance and hostel records efficiently.",
+  title: "School ERP - Attendance & School Operations",
+  description: "Manage student attendance, staff records, hostel registers, and academic data.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+      <body className="min-h-full flex flex-col bg-white text-slate-900">
         <AutoLogout />
         <Navbar />
-        {children}
+        <MainWrapper>
+          {children}
+        </MainWrapper>
       </body>
     </html>
   );

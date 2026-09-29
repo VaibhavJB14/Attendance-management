@@ -32,26 +32,29 @@ interface UserSession {
 export default function WardenAttendance() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
-  
+
   const [hostelName, setHostelName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
-  
+
   const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<Record<string, string>>({}); 
+  const [attendance, setAttendance] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [sessionName, setSessionName] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
-  const [hostelStudents, setHostelStudents] = useState<Student[]>([]);
-
-  // Unassigned Students Assignment State
-  const [selectedRoomForStudent, setSelectedRoomForStudent] = useState<Record<string, string>>({});
-  const [assigningStudent, setAssigningStudent] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => {
+      setMessage(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [message]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -59,7 +62,7 @@ export default function WardenAttendance() {
         setIsSearchOpen(false);
       }
     }
-    
+
     if (isSearchOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
@@ -75,7 +78,7 @@ export default function WardenAttendance() {
       return;
     }
     const user = JSON.parse(stored);
-    
+
     if (user.role !== 'WARDEN' && user.role !== 'SYSTEM_ADMIN' && user.role !== 'SCHOOL_ADMIN') {
       router.push('/');
       return;
@@ -86,7 +89,7 @@ export default function WardenAttendance() {
 
   useEffect(() => {
     if (!session || !hostelName) return;
-    
+
     // Fetch dynamic rooms and their occupancies
     const fetchRooms = async () => {
       try {
@@ -102,22 +105,6 @@ export default function WardenAttendance() {
       }
     };
     fetchRooms();
-
-    // Fetch all students in this hostel to populate the assignment dropdown
-    const fetchHostelStudents = async () => {
-      try {
-        const res = await fetch(`/api/students?isHosteler=true&hostelName=${encodeURIComponent(hostelName)}`, {
-          headers: { 'x-tenant-id': session.tenantId }
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setHostelStudents(data.students);
-        }
-      } catch (error) {
-        console.error('Failed to fetch hostel students', error);
-      }
-    };
-    fetchHostelStudents();
   }, [session, hostelName]);
 
   const loadStudents = async (targetRoom?: string) => {
@@ -135,9 +122,9 @@ export default function WardenAttendance() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load students');
-      
+
       setStudents(data.students);
-      
+
       const initialMap: Record<string, string> = {};
       data.students.forEach((student: any) => {
         initialMap[student.id] = 'PRESENT';
@@ -193,7 +180,7 @@ export default function WardenAttendance() {
       if (!res.ok) throw new Error(data.error || 'Failed to save attendance');
 
       setMessage({ type: 'success', text: `Successfully saved ${sessionName.toLowerCase()} attendance for ${records.length} students.` });
-      
+
     } catch (error: unknown) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' });
     } finally {
@@ -201,82 +188,32 @@ export default function WardenAttendance() {
     }
   };
 
-  const handleAssignFromList = async (studentId: string) => {
-    if (!session) return;
-    const targetRoom = selectedRoomForStudent[studentId];
-    if (!targetRoom) return;
+  const currentHour = new Date().getHours();
+  let isWardenSessionActive = true;
+  let wardenSessionError: string | null = null;
 
-    setAssigningStudent(true);
-    setMessage(null);
-    try {
-      const studentToAssign = hostelStudents.find(s => s.id === studentId);
-      if (!studentToAssign) throw new Error("Student not found.");
-
-      const assignRes = await fetch(`/api/students/${studentToAssign.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': session.tenantId
-        },
-        body: JSON.stringify({
-          isHosteler: true,
-          hostelName: hostelName,
-          roomNumber: targetRoom
-        })
-      });
-
-      if (!assignRes.ok) throw new Error('Failed to assign student');
-      
-      setMessage({ type: 'success', text: `Successfully assigned ${studentToAssign.firstName} to Room ${targetRoom}.` });
-      
-      // Update local state to remove from unassigned list
-      setHostelStudents(prev => prev.map(s => s.id === studentId ? { ...s, roomNumber: targetRoom } : s));
-      
-      // Update room occupancy
-      setAvailableRooms(prev => prev.map(r => {
-        if (r.roomNumber === targetRoom) {
-          const newOccupancy = r.occupancy + 1;
-          return { ...r, occupancy: newOccupancy, isFull: newOccupancy >= r.capacity };
-        }
-        return r;
-      }));
-
-      // If we are currently viewing the target room's roster, refresh it
-      if (roomNumber === targetRoom) {
-        loadStudents(targetRoom);
-      }
-      
-    } catch (err: unknown) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Unknown error' });
-    } finally {
-      setAssigningStudent(false);
+  if (sessionName === "Hostel Morning") {
+    if (currentHour < 5 || currentHour >= 13) {
+      isWardenSessionActive = false;
+      wardenSessionError = "Hostel Morning attendance cannot be taken at night or during evening hours (after 1:00 PM).";
     }
-  };
-
-  if (!session) return null;
+  } else if (sessionName === "Hostel Night") {
+    if (currentHour >= 5 && currentHour < 18) {
+      isWardenSessionActive = false;
+      wardenSessionError = "Hostel Night attendance cannot be taken in the morning or afternoon (allowed only between 6:00 PM and 4:00 AM).";
+    }
+  }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-8 mt-10">
-        
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Profile
-          </Link>
-          <div className="px-4 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-bold uppercase tracking-wider border border-indigo-200 shadow-sm flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-            Warden Mode
-          </div>
-        </div>
+    <main className="pl-0 md:pl-8 pb-12 font-sans">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         {/* Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-             <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z"/></svg>
+            <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z" /></svg>
           </div>
-          
+
           <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
             <div>
               <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
@@ -286,14 +223,14 @@ export default function WardenAttendance() {
                 Mark morning or night attendance for your designated hostel and room.
               </p>
             </div>
-            
+
             {/* Filter Controls */}
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              <select 
+              <select
                 value={hostelName}
                 onChange={(e) => {
-                  setHostelName(e.target.value); 
-                  setAvailableRooms([]); 
+                  setHostelName(e.target.value);
+                  setAvailableRooms([]);
                   setHasSearched(false);
                   setStudents([]);
                   setRoomNumber('');
@@ -305,16 +242,16 @@ export default function WardenAttendance() {
                 <option value="Girls Hostel">Girls Hostel</option>
               </select>
 
-              <select 
+              <select
                 value={sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
                 className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full p-3 font-semibold shadow-sm"
               >
                 <option value="" disabled>Select Session</option>
-                <option value="Hostel Morning">Morning Session</option>
-                <option value="Hostel Night">Night Session</option>
+                <option value="Hostel Morning">Morning Session (5 AM - 1 PM)</option>
+                <option value="Hostel Night">Night Session (6 PM - 4 AM)</option>
               </select>
-              
+
               {!isSearchOpen ? (
                 <button
                   onClick={() => setIsSearchOpen(true)}
@@ -326,8 +263,8 @@ export default function WardenAttendance() {
               ) : (
                 <div ref={searchRef} className="flex w-full md:w-auto flex-1 min-w-[150px] animate-in fade-in slide-in-from-right-4 duration-300">
                   <select
-                    value={roomNumber} 
-                    onChange={e => { setRoomNumber(e.target.value); setHasSearched(false); }} 
+                    value={roomNumber}
+                    onChange={e => { setRoomNumber(e.target.value); setHasSearched(false); }}
                     className="bg-slate-50 border border-slate-200 border-r-0 text-slate-700 text-sm rounded-l-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full min-w-[100px] p-3 font-semibold shadow-sm"
                     autoFocus
                   >
@@ -336,8 +273,8 @@ export default function WardenAttendance() {
                       <option key={room.id} value={room.roomNumber}>{room.roomNumber}</option>
                     ))}
                   </select>
-                  
-                  <button 
+
+                  <button
                     onClick={() => loadStudents()}
                     disabled={loading || !roomNumber || !sessionName}
                     className="bg-indigo-400 hover:bg-indigo-500 text-white font-bold py-3 px-4 sm:px-6 shadow-md transition-colors whitespace-nowrap active:scale-95 disabled:opacity-50"
@@ -360,16 +297,16 @@ export default function WardenAttendance() {
           {availableRooms.length > 0 && (
             <div className="relative z-10 pt-4 border-t border-slate-100 mt-6">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Available Rooms in {hostelName}</p>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-4">
                 {availableRooms.map(room => (
-                  <button 
+                  <button
                     key={room.id}
                     onClick={() => loadStudents(room.roomNumber)}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold border shadow-sm transition-all flex flex-col items-start ${room.roomNumber === roomNumber && hasSearched ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'}`}
+                    className={`group relative rounded-3xl p-3 w-28 h-24 flex flex-col items-center justify-center transition-all border-2 shadow-sm hover:shadow-md ${room.roomNumber === roomNumber && hasSearched ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-400 hover:border-indigo-600 hover:text-indigo-600'}`}
                   >
-                    <span>Room {room.roomNumber}</span>
-                    <span className={`text-[10px] uppercase tracking-wider mt-0.5 ${room.roomNumber === roomNumber && hasSearched ? 'text-indigo-200' : (room.isFull ? 'text-rose-500' : 'text-slate-400')}`}>
-                      {room.isFull ? 'Full' : `${room.occupancy}/${room.capacity} Seats`}
+                    <span className="text-3xl font-extrabold tracking-tight">{room.roomNumber}</span>
+                    <span className={`text-[11px] font-bold mt-1 uppercase tracking-wider ${room.roomNumber === roomNumber && hasSearched ? 'text-indigo-100' : (room.isFull ? 'text-rose-500' : 'text-slate-500')}`}>
+                      {room.isFull ? 'Full' : `${room.occupancy}/${room.capacity} seats`}
                     </span>
                   </button>
                 ))}
@@ -378,63 +315,70 @@ export default function WardenAttendance() {
           )}
         </div>
 
-        {/* Unassigned Students Section */}
-        {hostelStudents.filter(s => !s.roomNumber).length > 0 && (
-          <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 mt-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-              <svg className="w-48 h-48 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        {/* Attendance Overview Progress Section (Hostels Only) */}
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-xs font-bold text-indigo-700 mb-1">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                Hostel Roll-Call Statistics Only
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Hostel Attendance Overview</h2>
             </div>
-            
-            <div className="relative z-10 mb-6 border-b border-slate-100 pb-4">
-              <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
-                New Students
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">These students have been enrolled into the {hostelName} but are not yet assigned a room.</p>
-            </div>
-            
-            <ul className="divide-y divide-slate-100 relative z-10">
-              {hostelStudents.filter(s => !s.roomNumber).map(student => (
-                <li key={student.id} className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <p className="font-bold text-slate-800 text-lg">{student.firstName} {student.lastName}</p>
-                    <p className="text-sm font-medium text-amber-600 mt-0.5">
-                      {student.rollNumber ? `Roll No: ${student.rollNumber} | ` : ''}{student.grade} - {student.section}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 w-full sm:w-auto">
-                    <select
-                      value={selectedRoomForStudent[student.id] || ''}
-                      onChange={e => setSelectedRoomForStudent(prev => ({...prev, [student.id]: e.target.value}))}
-                      className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:ring-amber-500 focus:border-amber-500 text-slate-700 font-medium w-full sm:w-40"
-                    >
-                      <option value="">-- Room --</option>
-                      {availableRooms.map(room => (
-                        <option key={room.id} value={room.roomNumber} disabled={room.isFull}>
-                          {room.roomNumber} {room.isFull ? '(Full)' : `(${room.capacity - room.occupancy} seats left)`}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => handleAssignFromList(student.id)}
-                      disabled={assigningStudent || !selectedRoomForStudent[student.id]}
-                      className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all active:scale-95 shadow-sm disabled:opacity-50 whitespace-nowrap"
-                    >
-                      Assign
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <span className="text-xs font-extrabold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+              {hostelName || 'All Hostels'} (Hostel Residents Only)
+            </span>
           </div>
-        )}
+
+          {/* Full width ratio bar matching reference screenshot */}
+          <div className="w-full h-9 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center relative font-bold text-xs shadow-inner">
+            <div className="bg-emerald-500 h-full flex items-center justify-center text-white font-extrabold transition-all duration-500" style={{ width: '34%' }}>
+              34%
+            </div>
+            <div className="bg-rose-500 h-full flex items-center justify-center text-white font-extrabold transition-all duration-500" style={{ width: '5%' }}>
+              5%
+            </div>
+            <div className="bg-slate-200/90 h-full flex items-center justify-center text-slate-700 font-semibold transition-all duration-500" style={{ width: '61%' }}>
+              61%
+            </div>
+          </div>
+
+          {/* Legend Row matching reference screenshot */}
+          <div className="flex flex-wrap items-center justify-between text-xs font-bold pt-1">
+            <div className="flex items-center gap-6">
+              <span className="flex items-center gap-2 text-emerald-600 font-extrabold">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                Present: 14 Hostelers
+              </span>
+              <span className="flex items-center gap-2 text-slate-400 font-semibold">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                Not Recorded: 25 Hostelers
+              </span>
+            </div>
+            <span className="flex items-center gap-2 text-rose-600 font-extrabold">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+              Absent: 2 Hostelers
+            </span>
+          </div>
+        </div>
+
+
 
         {/* Feedback Message */}
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${
-            message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-          }`}>
+          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
             {message.text}
+          </div>
+        )}
+
+        {/* Warden Session Time Restriction Warning */}
+        {!isWardenSessionActive && sessionName && (
+          <div className="p-4 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-sm font-bold flex items-center gap-2 shadow-xs">
+            <svg className="w-5 h-5 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{wardenSessionError}</span>
           </div>
         )}
 
@@ -449,8 +393,6 @@ export default function WardenAttendance() {
           </div>
         )}
 
-
-
         {/* Attendance Roster */}
         {students.length > 0 && (
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mt-8">
@@ -459,11 +401,11 @@ export default function WardenAttendance() {
                 <h2 className="text-xl font-bold text-slate-800">Room {roomNumber} Roster</h2>
                 <p className="text-sm text-slate-500 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
               </div>
-              
-              <button 
+
+              <button
                 onClick={handleSubmit}
-                disabled={saving}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                disabled={saving || !isWardenSessionActive}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2"
               >
                 {saving ? (
                   <>
@@ -473,12 +415,12 @@ export default function WardenAttendance() {
                 ) : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                    Submit Attendance
+                    {!isWardenSessionActive ? 'Window Closed' : 'Submit Attendance'}
                   </>
                 )}
               </button>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -492,7 +434,7 @@ export default function WardenAttendance() {
                 <tbody className="divide-y divide-slate-100">
                   {students.map((student) => {
                     const status = attendance[student.id];
-                    
+
                     return (
                       <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 font-semibold text-slate-800">
@@ -508,14 +450,14 @@ export default function WardenAttendance() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end">
                             <button
+                              disabled={saving || !isWardenSessionActive}
                               onClick={() => handleStatusChange(student.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
-                              className={`px-6 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all border-2 w-28 ${
-                                status === 'PRESENT' 
-                                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' 
-                                  : status === 'ABSENT'
+                              className={`px-6 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all border-2 w-28 ${status === 'PRESENT'
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                                : status === 'ABSENT'
                                   ? 'bg-rose-500 border-rose-500 text-white shadow-md'
-                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                              }`}
+                                  : (!isWardenSessionActive) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                }`}
                             >
                               {status === 'ABSENT' ? 'A' : 'P'}
                             </button>

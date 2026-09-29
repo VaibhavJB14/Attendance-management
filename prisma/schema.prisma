@@ -34,6 +34,9 @@ model Tenant {
   classTeacherAssignments ClassTeacherAssignment[]
   excusedAbsences  ExcusedAbsence[]
   timeslots        Timeslot[]
+  medicalRecords   MedicalRecord[]
+  admissionRecords AdmissionRecord[]
+  hospitalLogs     HospitalLog[]
 }
 
 model SchoolClass {
@@ -74,6 +77,7 @@ model Student {
   tenant         Tenant    @relation(fields: [tenantId], references: [id])
   firstName      String
   lastName       String
+  gender         String?   @default("Male")
   grade          String    @default("Year 1") // Added for grouping
   section        String    @default("Sec A")  // Added for grouping
   enrollmentDate DateTime
@@ -290,3 +294,109 @@ model ExcusedAbsence {
   @@unique([studentId, date])
   @@index([tenantId])
 }
+
+// ------------------------------------------------------
+// Medical Records & Health Management
+// ------------------------------------------------------
+
+model MedicalRecord {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  type          String   // "STUDENT" | "STAFF"
+  name          String
+  gender        String?  @default("Male")
+  phone         String
+  bloodGroup    String   // e.g., "A+", "B+", "O-", etc.
+  dob           String   // e.g., "1998-05-15"
+  email         String
+  reportType    String   @default("WRITTEN") // "WRITTEN" | "UPLOAD"
+  reportContent String?  // Written note text OR uploaded report file URL/name
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ------------------------------------------------------
+// Admission Dashboard & Student Enrollment
+// ------------------------------------------------------
+
+model AdmissionRecord {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  studentId        String?  // Linked Student record ID if enrolled
+  type             String   @default("STUDENT") // "STUDENT" | "STAFF"
+
+  // Personal Details
+  firstName        String
+  middleName       String?
+  lastName         String
+  dob              String   // Date of Birth
+  gender           String?  @default("Male") // "Male" | "Female" | "Other"
+  bloodGroup       String   // e.g. "O+"
+  phone            String
+  email            String
+  currentAddress   String
+  permanentAddress String
+
+  // Parent Details
+  parentFirstName  String
+  parentMiddleName String?
+  parentLastName   String
+  parentDob        String?
+  parentBloodGroup String?
+  parentPhone      String
+  parentEmail      String?
+
+  // Academic Assignment
+  grade            String   @default("Year 1")
+  section          String   @default("Sec A")
+  isHosteler       Boolean  @default(false)
+  hostelName       String?
+  roomNumber       String?
+  experience       String?  // Optional experience for Staff (e.g. "3 Years", "Fresher")
+
+  // Documents & Status
+  status           String   @default("ENROLLED") // "ENROLLED" | "PENDING_VERIFICATION" | "APPROVED"
+  documentsJson    String   @default("[]")      // JSON list of required docs: { name: string, isChecked: boolean, fileUrl?: string }[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([type])
+}
+
+// ------------------------------------------------------
+// Hospital & Warden Health Log Management
+// ------------------------------------------------------
+
+model HospitalLog {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  studentName      String
+  studentGrade     String?
+  studentSection   String?
+  hostelName       String?
+  roomNumber       String?
+  hospitalName     String
+  doctorName       String?
+  reason           String
+  status           String   @default("ADMITTED") // "ADMITTED" | "UNDER_OBSERVATION" | "DISCHARGED" | "TREATED"
+  hospitalizedAt   DateTime @default(now())
+  wardenName       String
+  wardenContact    String?
+  guardianNotified Boolean  @default(true)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+

@@ -30,7 +30,7 @@ export default function Login() {
 
       // Save session to localStorage
       localStorage.setItem('session', JSON.stringify(data.user));
-      
+
       // Redirect to Dashboard
       router.push('/');
     } catch (err: unknown) {
@@ -41,13 +41,7 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 font-sans flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Decorative Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[70%] h-[70%] bg-indigo-50 rounded-full blur-3xl opacity-60"></div>
-        <div className="absolute -bottom-[20%] -left-[10%] w-[70%] h-[70%] bg-blue-50 rounded-full blur-3xl opacity-60"></div>
-      </div>
-
+    <div className="w-full min-h-screen bg-white font-sans flex items-center justify-center p-6 relative">
       <div className="w-full max-w-md relative z-10">
         {/* Logo/Brand */}
         <div className="flex flex-col items-center mb-8">
@@ -61,7 +55,7 @@ export default function Login() {
         {/* Login Card */}
         <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
           <form onSubmit={handleLogin} className="space-y-6">
-            
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 block">Email Address / Phone Number</label>
               <div className="relative">
@@ -134,6 +128,6 @@ export default function Login() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

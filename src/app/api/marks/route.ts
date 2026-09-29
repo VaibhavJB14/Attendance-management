@@ -2,16 +2,15 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { requirePlan } from '@/lib/featureGuard';
 
 export async function GET(request: Request) {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
 
-    // Plan restriction removed
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing tenant ID' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const grade = searchParams.get('grade');
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
     // First get the students
     const students = await prisma.student.findMany({
       where: {
-        tenantId: session.tenantId,
+        tenantId: tenantId,
         ...(grade && { grade }),
         ...(section && { section }),
       },
@@ -49,7 +48,6 @@ export async function GET(request: Request) {
         }
       });
     } else {
-       // Return all marks for these students
        marks = await prisma.mark.findMany({
         where: {
           studentId: { in: studentIds },
@@ -67,16 +65,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing tenant ID' }, { status: 401 });
     }
     
-    // Allow TEACHER, SYSTEM_ADMIN, SCHOOL_ADMIN
-    if (session.role === 'STUDENT' || session.role === 'PARENT') {
+    if (session && (session.role === 'STUDENT' || session.role === 'PARENT')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-
-    // Plan restriction removed
 
     const body = await request.json();
     const { examName, examCategory, syllabusCoverage, subject, maxScore, examDate, records } = body;
@@ -85,7 +82,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
     
-    // Parse examDate, default to today
     const parsedExamDate = examDate ? new Date(examDate) : new Date();
     parsedExamDate.setUTCHours(12, 0, 0, 0);
     
@@ -98,7 +94,7 @@ export async function POST(request: Request) {
     }
     
     const operations = records.map(record => {
-      const recordSubject = record.subject || subject; // Fallback to top-level if not present
+      const recordSubject = record.subject || subject;
       const recordMaxScore = record.maxScore || maxScore;
       return prisma.mark.findFirst({
         where: {
@@ -163,7 +159,7 @@ export async function POST(request: Request) {
       
       return prisma.notificationQueue.create({
         data: {
-          tenantId: session.tenantId,
+          tenantId: tenantId,
           studentId: record.studentId,
           date: new Date(),
           sessionName: 'Marks Update',

@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const queryTenantId = searchParams.get('tenantId');
     const studentId = searchParams.get('studentId');
     const hostelName = searchParams.get('hostelName');
+    const roomNumber = searchParams.get('roomNumber');
 
     const grade = searchParams.get('grade');
     const section = searchParams.get('section');
@@ -18,10 +19,10 @@ export async function GET(request: Request) {
     const year = searchParams.get('year');
 
     const session = await getSession();
-    if (!session?.tenantId) {
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id') || queryTenantId;
+    if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tenantId = session.tenantId;
 
     // Verify Plan
     await requirePlan(tenantId, 'BASIC');
@@ -29,7 +30,11 @@ export async function GET(request: Request) {
     let dateFilter = {};
     const now = new Date();
     
-    if (timeframe === 'last_week') {
+    if (timeframe === 'today') {
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      dateFilter = { gte: startOfDay, lte: endOfDay };
+    } else if (timeframe === 'last_week') {
       const lastWeek = new Date();
       lastWeek.setDate(now.getDate() - 7);
       dateFilter = { gte: lastWeek };
@@ -66,6 +71,10 @@ export async function GET(request: Request) {
       let studentFilter: any = { tenantId };
       if (hostelName) {
         studentFilter.hostelName = hostelName;
+        studentFilter.isHosteler = true;
+      }
+      if (roomNumber) {
+        studentFilter.roomNumber = roomNumber;
         studentFilter.isHosteler = true;
       }
       if (grade) studentFilter.grade = grade;

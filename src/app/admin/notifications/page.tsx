@@ -34,7 +34,7 @@ export default function NotificationsDashboard() {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [filter, setFilter] = useState('ALL');
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('session');
@@ -48,7 +48,7 @@ export default function NotificationsDashboard() {
       return;
     }
     setSession(user);
-    
+
     fetchNotifications(user.tenantId, 'ALL');
   }, [router]);
 
@@ -85,9 +85,9 @@ export default function NotificationsDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to process queue');
-      
+
       setMessage({ type: 'success', text: `Processed ${data.processed} items: ${data.sentCount} sent, ${data.cancelledCount} cancelled, ${data.errorCount} errors.` });
-      
+
       // Refresh list
       fetchNotifications(session.tenantId, filter);
     } catch (err: any) {
@@ -100,23 +100,15 @@ export default function NotificationsDashboard() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-8 mt-10">
-        
-        {/* Navigation */}
-        <div className="flex items-center justify-between">
-          <Link href="/admin/reports" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Reports Hub
-          </Link>
-        </div>
+    <main className="font-sans pl-0 md:pl-8 pb-12">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         {/* Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-             <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+            <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" /></svg>
           </div>
-          
+
           <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
@@ -126,8 +118,8 @@ export default function NotificationsDashboard() {
                 Monitor and process automated parent SMS and email alerts.
               </p>
             </div>
-            
-            <button 
+
+            <button
               onClick={triggerProcess}
               disabled={triggering}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
@@ -149,9 +141,8 @@ export default function NotificationsDashboard() {
 
         {/* Feedback Message */}
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${
-            message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-          }`}>
+          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
             {message.text}
           </div>
         )}
@@ -160,24 +151,23 @@ export default function NotificationsDashboard() {
         <div className="bg-white rounded-3xl shadow-md border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Alert Queue Log</h2>
-            
+
             <div className="flex bg-slate-200 p-1 rounded-xl">
               {['ALL', 'PENDING', 'SENT', 'CANCELLED'].map((f) => (
                 <button
                   key={f}
                   onClick={() => handleFilterChange(f)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                    filter === f 
-                      ? 'bg-white text-indigo-700 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === f
+                    ? 'bg-white text-indigo-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                    }`}
                 >
                   {f}
                 </button>
               ))}
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -197,11 +187,10 @@ export default function NotificationsDashboard() {
                   notifications.map((n) => (
                     <tr key={n.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
-                          n.status === 'SENT' ? 'bg-emerald-100 text-emerald-700' :
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase ${n.status === 'SENT' ? 'bg-emerald-100 text-emerald-700' :
                           n.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                          'bg-slate-100 text-slate-600'
-                        }`}>
+                            'bg-slate-100 text-slate-600'
+                          }`}>
                           {n.status}
                         </span>
                       </td>

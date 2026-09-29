@@ -22,7 +22,7 @@ export default function TimetableAdmin() {
   // Filters
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
-  
+
   const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
   const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
   const getSectionsForGrade = (g: string) => schoolClasses.filter((c: any) => c.grade === g).map((c: any) => c.section);
@@ -44,13 +44,13 @@ export default function TimetableAdmin() {
   const [subject, setSubject] = useState('');
   const [periods, setPeriods] = useState('5');
   const [teacherId, setTeacherId] = useState('');
-  
+
   // Data
   const [teachersList, setTeachersList] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [timetable, setTimetable] = useState<any[]>([]);
   const [timeslots, setTimeslots] = useState<any[]>([]);
-  
+
   // Timeslot State
   const [newSlotStart, setNewSlotStart] = useState('');
   const [newSlotEnd, setNewSlotEnd] = useState('');
@@ -66,11 +66,11 @@ export default function TimetableAdmin() {
       fetch('/api/classes', {
         headers: { 'x-tenant-id': session.tenantId }
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.classes) setSchoolClasses(data.classes);
-      })
-      .catch(console.error);
+        .then(res => res.json())
+        .then(data => {
+          if (data.classes) setSchoolClasses(data.classes);
+        })
+        .catch(console.error);
     }
   }, [session]);
 
@@ -87,12 +87,12 @@ export default function TimetableAdmin() {
     }
     setSession(user);
     fetchData(user.tenantId, grade, section);
-    
+
     // Fetch teachers
-    fetch('/api/users?role=TEACHER', { headers: { 'x-tenant-id': user.tenantId }})
+    fetch('/api/users?role=TEACHER', { headers: { 'x-tenant-id': user.tenantId } })
       .then(r => r.json())
       .then(d => setTeachersList(d.users || []));
-      
+
   }, [router]);
 
   useEffect(() => {
@@ -106,18 +106,18 @@ export default function TimetableAdmin() {
     setRequirements([]);
     setTimetable([]);
     try {
-      const tsRes = await fetch(`/api/timeslots`, { headers: { 'x-tenant-id': tenantId }});
+      const tsRes = await fetch(`/api/timeslots`, { headers: { 'x-tenant-id': tenantId } });
       const tsData = await tsRes.json();
       if (tsData.timeslots) setTimeslots(tsData.timeslots);
 
-      const reqRes = await fetch(`/api/timetable/requirements?grade=${encodeURIComponent(g)}&section=${encodeURIComponent(s)}`, { headers: { 'x-tenant-id': tenantId }});
+      const reqRes = await fetch(`/api/timetable/requirements?grade=${encodeURIComponent(g)}&section=${encodeURIComponent(s)}`, { headers: { 'x-tenant-id': tenantId } });
       const reqData = await reqRes.json();
       if (reqData.requirements) setRequirements(reqData.requirements);
 
-      const ttRes = await fetch(`/api/timetable?grade=${encodeURIComponent(g)}&section=${encodeURIComponent(s)}`, { headers: { 'x-tenant-id': tenantId }});
+      const ttRes = await fetch(`/api/timetable?grade=${encodeURIComponent(g)}&section=${encodeURIComponent(s)}`, { headers: { 'x-tenant-id': tenantId } });
       const ttData = await ttRes.json();
       if (ttData.timetables) setTimetable(ttData.timetables);
-      
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -145,11 +145,11 @@ export default function TimetableAdmin() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to add requirement');
-      
+
       setMessage({ type: 'success', text: `Successfully saved requirement for ${subject}.` });
       setSubject('');
       fetchData(session.tenantId, grade, section);
-      
+
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -225,20 +225,20 @@ export default function TimetableAdmin() {
     try {
       const res = await fetch('/api/timetable/generate', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': session.tenantId 
+          'x-tenant-id': session.tenantId
         },
         body: JSON.stringify({ grade, section })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Generation failed');
-      
+
       setMessage({ type: 'success', text: data.message });
       fetchData(session.tenantId, grade, section); // refresh grid
       setActiveTab('view');
-      
+
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -270,7 +270,7 @@ export default function TimetableAdmin() {
       });
 
       const data = await res.json();
-      
+
       if (res.status === 409 && !forceManual) {
         // Overlap detected, prompt to force
         setMessage({ type: 'error', text: data.error + ' Check "Force Assignment" and try again to override.' });
@@ -280,14 +280,14 @@ export default function TimetableAdmin() {
       }
 
       if (!res.ok) throw new Error(data.error || 'Failed to save manually');
-      
+
       setMessage({ type: 'success', text: 'Slot assigned manually.' });
       setSelectedSlot(null);
       setForceManual(false);
       setManualSubject('');
       setManualTeacherId('');
       fetchData(session.tenantId, grade, section);
-      
+
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -308,11 +308,11 @@ export default function TimetableAdmin() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete');
-      
+
       setMessage({ type: 'success', text: 'Slot deleted.' });
       setSelectedSlot(null);
       fetchData(session.tenantId, grade, section);
-      
+
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -326,16 +326,8 @@ export default function TimetableAdmin() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8 mt-10">
-        
-        {/* Navigation */}
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/admin/extra-features" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Extra Features Hub
-          </Link>
-        </div>
+    <main className="pl-0 md:pl-8 pb-12 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
 
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
@@ -343,7 +335,7 @@ export default function TimetableAdmin() {
               <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Algorithmic Timetable</h1>
               <p className="text-slate-500 mt-2">Manage course requirements and automatically schedule classes.</p>
             </div>
-            <button 
+            <button
               onClick={handleGenerate}
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 w-full lg:w-auto justify-center"
@@ -524,8 +516,8 @@ export default function TimetableAdmin() {
                             {timeslots.map(slot => {
                               const cell = timetable.find(t => t.dayOfWeek === dayNum && t.startTime === slot.startTime);
                               return (
-                                <td 
-                                  key={slot.startTime} 
+                                <td
+                                  key={slot.startTime}
                                   onClick={() => {
                                     setSelectedSlot({
                                       dayOfWeek: dayNum,
@@ -579,15 +571,15 @@ export default function TimetableAdmin() {
                     {selectedSlot.dayName}, {selectedSlot.startTime} - {selectedSlot.endTime}
                   </p>
                 </div>
-                
+
                 <div className="p-6 space-y-4">
                   {selectedSlot.existingId ? (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
                       <p className="text-sm text-slate-700 font-semibold mb-2">Current Assignment:</p>
                       <p className="text-lg font-bold text-indigo-700">{selectedSlot.subject}</p>
                       <p className="text-sm text-slate-600 mb-4">Teacher: {teachersList.find(t => t.id === selectedSlot.teacherId)?.email || selectedSlot.teacherId}</p>
-                      
-                      <button 
+
+                      <button
                         onClick={handleManualDelete}
                         className="w-full py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg transition-colors flex justify-center items-center gap-2"
                       >
@@ -610,15 +602,15 @@ export default function TimetableAdmin() {
                           ))}
                         </select>
                       </div>
-                      
+
                       {forceManual && (
                         <div className="flex items-center gap-2 bg-amber-50 text-amber-800 p-3 rounded-lg border border-amber-200">
                           <input type="checkbox" id="force" checked={forceManual} onChange={e => setForceManual(e.target.checked)} className="w-4 h-4 text-amber-600 rounded" />
                           <label htmlFor="force" className="text-sm font-semibold">Force Assignment (Override warnings)</label>
                         </div>
                       )}
-                      
-                      <button 
+
+                      <button
                         onClick={handleManualSave}
                         disabled={!manualSubject || !manualTeacherId || loading}
                         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"

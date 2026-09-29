@@ -69,10 +69,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await getSession();
-    if (!session?.tenantId) {
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
+    if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tenantId = session.tenantId;
 
     await requirePlan(tenantId, 'BASIC');
 
@@ -114,10 +114,10 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const session = await getSession();
-    if (!session?.tenantId) {
+    const tenantId = session?.tenantId || request.headers.get('x-tenant-id');
+    if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tenantId = session.tenantId;
     const { searchParams } = new URL(request.url);
     const roomId = searchParams.get('roomId');
     

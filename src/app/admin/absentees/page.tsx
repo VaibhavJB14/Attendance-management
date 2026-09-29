@@ -24,7 +24,7 @@ interface UserSession {
 export default function AbsenteesList() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
-  
+
   const [absentStudents, setAbsentStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +48,7 @@ export default function AbsenteesList() {
         const stuRes = await fetch('/api/students', {
           headers: { 'x-tenant-id': user.tenantId }
         });
-        
+
         let allStudents: Student[] = [];
         if (stuRes.ok) {
           const stuData = await stuRes.json();
@@ -60,9 +60,9 @@ export default function AbsenteesList() {
         const attRes = await fetch(`/api/attendance?date=${today}`, {
           headers: { 'x-tenant-id': user.tenantId }
         });
-        
+
         let absentStudentIds = new Set<string>();
-        
+
         if (attRes.ok) {
           const attData = await attRes.json();
           attData.attendance.forEach((r: any) => {
@@ -71,7 +71,7 @@ export default function AbsenteesList() {
             }
           });
         }
-        
+
         // Filter students to only those who are absent
         const filtered = allStudents.filter(s => absentStudentIds.has(s.id));
         setAbsentStudents(filtered);
@@ -89,20 +89,8 @@ export default function AbsenteesList() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-8 mt-10">
-        
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/admin/reports" className="flex items-center text-violet-600 font-semibold hover:text-violet-800 transition-colors">
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back to Reports Hub
-          </Link>
-          <div className="px-4 py-1.5 bg-violet-100 text-violet-800 rounded-full text-xs font-bold uppercase tracking-wider border border-violet-200 shadow-sm flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse"></div>
-            System Admin
-          </div>
-        </div>
+    <main className="font-sans pl-0 md:pl-8 pb-12">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         {/* Header */}
         <div>
@@ -135,7 +123,7 @@ export default function AbsenteesList() {
                   <p className="text-sm text-slate-500 mt-1">Students who are not present today.</p>
                 </div>
               </div>
-              
+
               {absentStudents.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 font-medium">
                   No absentees recorded today. Everyone is present or attendance is pending.
@@ -154,32 +142,33 @@ export default function AbsenteesList() {
                     <tbody className="divide-y divide-slate-100">
                       {absentStudents.map((student) => {
                         return (
-                        <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4 font-semibold text-slate-800">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-bold border border-violet-200">
-                                {student.firstName[0]}
+                          <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-slate-800">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-bold border border-violet-200">
+                                  {student.firstName[0]}
+                                </div>
+                                {student.firstName} {student.lastName}
                               </div>
-                              {student.firstName} {student.lastName}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 font-medium text-slate-600">{student.grade} - {student.section}</td>
-                          <td className="px-6 py-4">
-                            {student.isHosteler ? (
-                              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-md text-xs font-bold uppercase tracking-wider border border-amber-200">
-                                Hosteler
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-bold uppercase tracking-wider border border-slate-200">
-                                Day Scholar
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <span className="text-rose-600 font-bold text-sm">ABSENT</span>
-                          </td>
-                        </tr>
-                      )})}
+                            </td>
+                            <td className="px-6 py-4 font-medium text-slate-600">{student.grade} - {student.section}</td>
+                            <td className="px-6 py-4">
+                              {student.isHosteler ? (
+                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-md text-xs font-bold uppercase tracking-wider border border-amber-200">
+                                  Hosteler
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-bold uppercase tracking-wider border border-slate-200">
+                                  Day Scholar
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <span className="text-rose-600 font-bold text-sm">ABSENT</span>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

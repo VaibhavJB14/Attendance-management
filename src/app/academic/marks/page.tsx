@@ -32,9 +32,9 @@ interface UserSession {
 export default function AcademicMarks() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
-  
+
   const [activeTab, setActiveTab] = useState<'single' | 'master'>('single');
-  
+
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
   const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
@@ -42,7 +42,7 @@ export default function AcademicMarks() {
   // Dynamic Class Options
   const uniqueGrades = Array.from(new Set(schoolClasses.map((c: any) => c.grade)));
   const getSectionsForGrade = (grade: string) => schoolClasses.filter((c: any) => c.grade === grade).map((c: any) => c.section);
-  
+
   // Single Test Entry Fields
   const [examCategory, setExamCategory] = useState('Competitive');
   const [examName, setExamName] = useState('JEE');
@@ -52,17 +52,17 @@ export default function AcademicMarks() {
   const [maxScore, setMaxScore] = useState('100');
   const [maxScores, setMaxScores] = useState<Record<string, string>>({});
   const [examDate, setExamDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  
+
   // Master Gradebook Filters
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterExam, setFilterExam] = useState('All');
   const [filterSubject, setFilterSubject] = useState('All');
   const [filterExamDate, setFilterExamDate] = useState('All');
-  
+
   const [students, setStudents] = useState<Student[]>([]);
-  const [marksMap, setMarksMap] = useState<Record<string, string>>({}); 
+  const [marksMap, setMarksMap] = useState<Record<string, string>>({});
   const [allMarks, setAllMarks] = useState<any[]>([]);
-  
+
   // Class Teacher Status
   const [isClassTeacher, setIsClassTeacher] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,12 +71,12 @@ export default function AcademicMarks() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Messaging state
   const [messagingStudentId, setMessagingStudentId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
-  const [messagingStatus, setMessagingStatus] = useState<'idle'|'sending'|'success'|'error'>('idle');
+  const [messagingStatus, setMessagingStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
   useEffect(() => {
     const stored = localStorage.getItem('session');
@@ -85,7 +85,7 @@ export default function AcademicMarks() {
       return;
     }
     const user = JSON.parse(stored);
-    
+
     // Allow Teachers and Admins
     if (user.role === 'STUDENT' || user.role === 'PARENT' || user.role === 'WARDEN') {
       router.push('/');
@@ -99,11 +99,11 @@ export default function AcademicMarks() {
       fetch('/api/classes', {
         headers: { 'x-tenant-id': session.tenantId }
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.classes) setSchoolClasses(data.classes);
-      })
-      .catch(console.error);
+        .then(res => res.json())
+        .then(data => {
+          if (data.classes) setSchoolClasses(data.classes);
+        })
+        .catch(console.error);
     }
   }, [session]);
 
@@ -119,7 +119,7 @@ export default function AcademicMarks() {
         return;
       }
     }
-    
+
     setLoading(true);
     setMessage(null);
     setHasSearched(true);
@@ -135,20 +135,20 @@ export default function AcademicMarks() {
         setIsClassTeacher(ctData.isClassTeacher || false);
       } else {
         // Admins always have messaging rights
-        setIsClassTeacher(true); 
+        setIsClassTeacher(true);
       }
 
       // 2. Fetch Students and Marks
       const finalSubject = subject === 'Other' ? customSubject : subject;
       let url = `/api/marks?grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`;
-      
+
       if (activeTab === 'single') {
         url += `&examName=${encodeURIComponent(examName)}&examDate=${encodeURIComponent(examDate)}`;
         if (examCategory !== 'Competitive') {
           url += `&subject=${encodeURIComponent(finalSubject)}`;
         }
       }
-        
+
       const res = await fetch(url, {
         headers: {
           'x-tenant-id': session.tenantId,
@@ -156,22 +156,22 @@ export default function AcademicMarks() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load data');
-      
+
       setStudents(data.students);
       setAllMarks(data.marks || []);
-      
+
       if (activeTab === 'single') {
         const newMarksMap: Record<string, string> = {};
         if (data.marks && data.marks.length > 0) {
           data.marks.forEach((m: any) => {
             if (examCategory === 'Competitive') {
-               if (m.examName === examName) {
-                 newMarksMap[`${m.studentId}_${m.subject}`] = m.score.toString();
-               }
+              if (m.examName === examName) {
+                newMarksMap[`${m.studentId}_${m.subject}`] = m.score.toString();
+              }
             } else {
-               if (m.examName === examName && m.subject === finalSubject) {
-                 newMarksMap[`${m.studentId}_${finalSubject}`] = m.score.toString();
-               }
+              if (m.examName === examName && m.subject === finalSubject) {
+                newMarksMap[`${m.studentId}_${finalSubject}`] = m.score.toString();
+              }
             }
           });
         }
@@ -187,10 +187,10 @@ export default function AcademicMarks() {
 
   const handleScoreChange = (studentId: string, subjectKey: string, value: string) => {
     let parsedValue = parseFloat(value);
-    const max = examCategory === 'Competitive' 
+    const max = examCategory === 'Competitive'
       ? parseFloat(maxScores[subjectKey] || '100')
       : parseFloat(maxScore || '100');
-      
+
     if (!isNaN(parsedValue) && parsedValue > max) {
       value = max.toString();
     }
@@ -217,16 +217,16 @@ export default function AcademicMarks() {
 
   const handleSubmit = async () => {
     if (!session) return;
-    
+
     const finalSubject = subject === 'Other' ? customSubject : subject;
-    
+
     if (!examName || (examCategory !== 'Competitive' && !finalSubject)) {
       setMessage({ type: 'error', text: 'Please provide Exam Name and Subject before saving.' });
       return;
     }
 
     let records: any[] = [];
-    
+
     if (examCategory === 'Competitive') {
       const subjects = getCompetitiveSubjects(examName);
       students.forEach(s => {
@@ -283,7 +283,7 @@ export default function AcademicMarks() {
       } else {
         setMessage({ type: 'success', text: `Successfully saved ${finalSubject} marks for ${records.length} student(s).` });
       }
-      
+
     } catch (error: unknown) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' });
     } finally {
@@ -298,14 +298,14 @@ export default function AcademicMarks() {
 
     // Generate a summary based on currently visible columns (filter applied)
     const studentMarks = allMarks.filter(m => m.studentId === studentId);
-    
+
     let summaryText = `Performance Report for ${grade} ${section}\n\n`;
-    
+
     let hasMarks = false;
     uniqueTests.forEach(test => {
       const [cat, name, sub, mDate] = test.split(' | ');
-      const mark = studentMarks.find(m => 
-        m.examName === name && 
+      const mark = studentMarks.find(m =>
+        m.examName === name &&
         m.subject === sub &&
         (m.examCategory || 'Custom') === cat &&
         (mDate ? new Date(m.examDate).toISOString().split('T')[0] === mDate : true)
@@ -327,7 +327,7 @@ export default function AcademicMarks() {
 
   const handleSendMessage = async () => {
     if (!session || !messagingStudentId || !messageText) return;
-    
+
     setMessagingStatus('sending');
     try {
       const res = await fetch('/api/messages', {
@@ -344,14 +344,14 @@ export default function AcademicMarks() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send message');
-      
+
       setMessagingStatus('success');
       setTimeout(() => {
         setMessagingStudentId(null);
         setMessageText('');
         setMessagingStatus('idle');
       }, 2000);
-      
+
     } catch (error: unknown) {
       setMessagingStatus('error');
     }
@@ -384,7 +384,7 @@ export default function AcademicMarks() {
 
     const finalSubject = subject === 'Other' ? customSubject : subject;
     let headers = ['Roll Number', 'Student Name'];
-    
+
     if (examCategory === 'Competitive') {
       const selectedMax = maxScores['PHYSICS'] || maxScore;
       headers.push(`PHYSICS Score (Max: ${selectedMax})`);
@@ -395,7 +395,7 @@ export default function AcademicMarks() {
     }
 
     let csvContent = headers.join(',') + '\n';
-    
+
     students.forEach(student => {
       const row = [`"${student.rollNumber || ''}"`, `"${student.firstName} ${student.lastName}"`];
       if (examCategory === 'Competitive') {
@@ -405,7 +405,7 @@ export default function AcademicMarks() {
       }
       csvContent += row.join(',') + '\n';
     });
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -425,15 +425,15 @@ export default function AcademicMarks() {
     reader.onload = (event) => {
       const text = event.target?.result as string;
       if (!text) return;
-      
+
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) {
         alert('Invalid CSV file or empty data.');
         return;
       }
-      
+
       const headers = parseCSVRow(lines[0]);
-      
+
       // Validation to ensure it's our template
       if (!headers[0].includes('Roll Number') || !headers[1].includes('Student Name')) {
         alert('Invalid template format. Please download the template and use it.');
@@ -446,15 +446,15 @@ export default function AcademicMarks() {
       for (let i = 1; i < lines.length; i++) {
         const row = parseCSVRow(lines[i]);
         if (row.length < 3) continue;
-        
+
         const rollNum = row[0].replace(/"/g, '').trim();
         const studentName = row[1].replace(/"/g, '').trim();
-        
-        const student = students.find(s => 
-          (rollNum && s.rollNumber === rollNum) || 
+
+        const student = students.find(s =>
+          (rollNum && s.rollNumber === rollNum) ||
           `${s.firstName} ${s.lastName}`.trim() === studentName
         );
-        
+
         if (!student) continue;
 
         if (examCategory === 'Competitive') {
@@ -462,7 +462,7 @@ export default function AcademicMarks() {
           const phy = row[2] ? row[2].replace(/"/g, '').trim() : '';
           const chem = row[3] ? row[3].replace(/"/g, '').trim() : '';
           const math = row[4] ? row[4].replace(/"/g, '').trim() : '';
-          
+
           if (phy) newMarksMap[`${student.id}_PHYSICS`] = phy;
           if (chem) newMarksMap[`${student.id}_CHEMISTRY`] = chem;
           if (math) newMarksMap[`${student.id}_MATHS`] = math;
@@ -472,10 +472,10 @@ export default function AcademicMarks() {
           if (score) newMarksMap[`${student.id}_${finalSubject}`] = score;
         }
       }
-      
+
       setMarksMap(newMarksMap);
       alert('CSV Data loaded into the grid! Please review and click Save Marks.');
-      
+
       // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -486,7 +486,7 @@ export default function AcademicMarks() {
 
   const downloadCSV = (type: 'filtered' | 'all' = 'filtered') => {
     if (students.length === 0 || allMarks.length === 0) return;
-    
+
     let testsToExport: string[] = [];
     if (type === 'filtered') {
       testsToExport = uniqueTests;
@@ -508,29 +508,29 @@ export default function AcademicMarks() {
       const dateStr = mDate ? ` [${mDate}]` : '';
       headers.push(`${sub} - ${name} (${cat})${dateStr}`);
     });
-    
+
     let csvContent = headers.join(',') + '\n';
-    
+
     // Data rows
     students.forEach(student => {
       const row = [`"${student.firstName} ${student.lastName}"`, `"${student.rollNumber || ''}"`];
-      
+
       testsToExport.forEach(test => {
         const [cat, name, sub, mDate] = test.split(' | ');
-        const mark = allMarks.find(m => 
-          m.studentId === student.id && 
-          m.examName === name && 
+        const mark = allMarks.find(m =>
+          m.studentId === student.id &&
+          m.examName === name &&
           m.subject === sub &&
           (m.examCategory || 'Custom') === cat &&
           (mDate ? new Date(m.examDate).toISOString().split('T')[0] === mDate : true)
         );
-        
+
         row.push(mark ? `"${mark.score}/${mark.maxScore}"` : '""');
       });
-      
+
       csvContent += row.join(',') + '\n';
     });
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -554,11 +554,11 @@ export default function AcademicMarks() {
       if (m.examName) exams.add(m.examName);
       if (m.examDate) examDates.add(new Date(m.examDate).toISOString().split('T')[0]);
     });
-    return { 
-      subjects: Array.from(subjects), 
+    return {
+      subjects: Array.from(subjects),
       categories: Array.from(categories),
       exams: Array.from(exams),
-      examDates: Array.from(examDates).sort((a,b) => b.localeCompare(a)) // sort descending
+      examDates: Array.from(examDates).sort((a, b) => b.localeCompare(a)) // sort descending
     };
   };
   const filterOptions = getFilterOptions();
@@ -585,29 +585,15 @@ export default function AcademicMarks() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8 mt-10">
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between mb-8">
-          {isSuperAdmin ? (
-            <Link href="/admin/reports" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-              Back to Reports Hub
-            </Link>
-          ) : (
-            <Link href="/" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors">
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-              Back to Dashboard
-            </Link>
-          )}
-        </div>
+    <main className="font-sans pl-0 md:pl-8 pb-12">
+      <div className="max-w-7xl mx-auto space-y-8">
 
         {/* Header */}
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-             <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2.12-1.15V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
+            <svg className="w-48 h-48 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2.12-1.15V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z" /></svg>
           </div>
-          
+
           <div className="relative z-10">
             <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
               Academic Performance
@@ -618,251 +604,206 @@ export default function AcademicMarks() {
 
             {/* Tabs */}
             <div className="flex border-b border-slate-200 mb-6 gap-2">
-              <button 
+              <button
                 onClick={() => { setActiveTab('single'); setHasSearched(false); setMessage(null); setStudents([]); }}
                 className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'single' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
               >
                 Single Test Entry
               </button>
-              <button 
+              <button
                 onClick={() => { setActiveTab('master'); setHasSearched(false); setMessage(null); setStudents([]); }}
                 className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'master' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
               >
                 Master Gradebook (Excel View)
               </button>
             </div>
-            
-            {/* Filter Controls */}
-            <div className="flex flex-col sm:flex-row gap-3 w-full flex-wrap">
-              <select 
+
+            {/* Filter Controls - Single Line Bar */}
+            <div className="bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center gap-3">
+              <select
                 value={grade}
                 onChange={(e) => { setGrade(e.target.value); setHasSearched(false); }}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm"
+                className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3.5 py-2 font-semibold shadow-xs"
               >
                 <option value="" disabled>Select Grade</option>
                 {uniqueGrades.length > 0 ? (
                   uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
                 ) : (
-                  <option value="" disabled>No classes available</option>
+                  <option value="" disabled>No classes</option>
                 )}
               </select>
 
-              <select 
+              <select
                 value={section}
                 onChange={(e) => { setSection(e.target.value); setHasSearched(false); }}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm"
+                className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3.5 py-2 font-semibold shadow-xs"
               >
                 <option value="" disabled>Select Section</option>
                 {getSectionsForGrade(grade).length > 0 ? (
                   getSectionsForGrade(grade).map((s: any) => <option key={s} value={s}>{s}</option>)
                 ) : (
-                  <option value="" disabled>No sections available</option>
+                  <option value="" disabled>No sections</option>
                 )}
               </select>
 
-              <button 
-                onClick={loadStudentsAndMarks}
-                disabled={loading || !grade || !section}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
-              >
-                {loading ? '...' : 'Load Sheet'}
-              </button>
-            </div>
-            
-            {/* Single Test Extended Controls */}
-            {activeTab === 'single' && (
-              <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-wrap gap-4 items-center">
-                <div className="w-full flex justify-between items-center">
-                  <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Test Details</div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={downloadTemplate}
-                      title="Download CSV Template"
-                      className="bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors"
-                    >
-                      <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                      Template
-                    </button>
-                    
-                    <label className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 cursor-pointer px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors">
-                      <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                      Upload CSV
-                      <input 
-                        type="file"
-                        accept=".csv"
-                        className="hidden"
-                        ref={fileInputRef}
-                        onChange={handleCSVUpload}
-                      />
-                    </label>
-
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-4">Exam Conduct Date</label>
-                    <input 
-                      type="date"
-                      value={examDate}
-                      onChange={(e) => { setExamDate(e.target.value); setHasSearched(false); }}
-                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-1.5 shadow-sm font-semibold"
-                    />
-                  </div>
-                </div>
-                
-                <select 
-                  value={examCategory}
-                  onChange={(e) => { 
-                    const newCat = e.target.value;
-                    setExamCategory(newCat); 
-                    if (newCat === 'Competitive') {
-                      setExamName('JEE');
-                    } else {
-                      setExamName('');
-                    }
-                    setHasSearched(false); 
-                  }}
-                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 font-semibold shadow-sm w-full sm:w-40"
-                >
-                  <option value="Competitive">Competitive</option>
-                  <option value="Theory">Theory</option>
-                  <option value="Practical">Practical</option>
-                </select>
-
-                {examCategory === 'Competitive' ? (
+              {activeTab === 'single' && (
+                <>
                   <select
-                    value={examName}
-                    onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
-                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
+                    value={examCategory}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      setExamCategory(newCat);
+                      setExamName(newCat === 'Competitive' ? 'JEE' : '');
+                      setHasSearched(false);
+                    }}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
                   >
-                    <option value="JEE">JEE</option>
-                    <option value="NEET">NEET</option>
-                    <option value="K-CET">K-CET</option>
+                    <option value="Competitive">Competitive</option>
+                    <option value="Theory">Theory</option>
+                    <option value="Practical">Practical</option>
                   </select>
-                ) : (
-                  <input 
-                    type="text" 
-                    placeholder="Exam Name (e.g. Unit Test 1)"
-                    value={examName}
-                    onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
-                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
-                  />
-                )}
 
-                {examCategory !== 'Competitive' && (
-                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  {examCategory === 'Competitive' ? (
+                    <select
+                      value={examName}
+                      onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                    >
+                      <option value="JEE">JEE</option>
+                      <option value="NEET">NEET</option>
+                      <option value="K-CET">K-CET</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Exam Name"
+                      value={examName}
+                      onChange={(e) => { setExamName(e.target.value); setHasSearched(false); }}
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs w-36"
+                    />
+                  )}
+
+                  {examCategory !== 'Competitive' && (
                     <select
                       value={subject}
                       onChange={(e) => { setSubject(e.target.value); setHasSearched(false); }}
-                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
                     >
                       <option value="PHYSICS">PHYSICS</option>
                       <option value="MATHS">MATHS</option>
                       <option value="CHEMISTRY">CHEMISTRY</option>
-                      <option value="BIOLOGY/COMPUTER SCIENCE">BIOLOGY/COMPUTER SCIENCE</option>
+                      <option value="BIOLOGY/COMPUTER SCIENCE">BIOLOGY/CS</option>
                       <option value="KANNADA/SANSKRITH">KANNADA/SANSKRITH</option>
                       <option value="ENGLISH">ENGLISH</option>
                       <option value="Other">Other...</option>
                     </select>
-                    
-                    {subject === 'Other' && (
-                      <input 
-                        type="text" 
-                        placeholder="Custom Subject"
-                        value={customSubject}
-                        onChange={(e) => { setCustomSubject(e.target.value); setHasSearched(false); }}
-                        className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-40"
-                      />
-                    )}
-                  </div>
-                )}
-                
-                <input 
-                  type="text" 
-                  placeholder="Syllabus (e.g. Ch 1-3)"
-                  value={syllabusCoverage}
-                  onChange={(e) => { setSyllabusCoverage(e.target.value); setHasSearched(false); }}
-                  className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-3 shadow-sm font-semibold w-full sm:w-48"
-                />
-              </div>
-            )}
-            
-            {/* Master Gradebook Extended Controls */}
-            {activeTab === 'master' && allMarks.length > 0 && (
-               <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-wrap gap-4 items-center">
-                 <div className="w-full flex justify-between items-center">
-                   <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2">
-                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                     Filter Grid
-                   </div>
-                   {isClassTeacher && (
-                     <div className="text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
-                       ✓ Verified Class Teacher
-                     </div>
-                   )}
-                 </div>
-                 
-                 <div className="flex items-center gap-2">
-                   <label className="text-sm font-semibold text-slate-600">Category:</label>
-                   <select 
-                     value={filterCategory}
-                     onChange={(e) => setFilterCategory(e.target.value)}
-                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
-                   >
-                     <option value="All">All Categories</option>
-                     {filterOptions.categories.map(c => (
-                       <option key={c} value={c}>{c}</option>
-                     ))}
-                   </select>
-                 </div>
+                  )}
 
-                 <div className="flex items-center gap-2">
-                   <label className="text-sm font-semibold text-slate-600">Exam:</label>
-                   <select 
-                     value={filterExam}
-                     onChange={(e) => setFilterExam(e.target.value)}
-                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
-                   >
-                     <option value="All">All Exams</option>
-                     {filterOptions.exams.map(e => (
-                       <option key={e} value={e}>{e}</option>
-                     ))}
-                   </select>
-                 </div>
-                 
-                 <div className="flex items-center gap-2">
-                   <label className="text-sm font-semibold text-slate-600">Subject:</label>
-                   <select 
-                     value={filterSubject}
-                     onChange={(e) => setFilterSubject(e.target.value)}
-                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
-                   >
-                     <option value="All">All Subjects</option>
-                     {filterOptions.subjects.map(s => (
-                       <option key={s} value={s}>{s}</option>
-                     ))}
-                   </select>
-                 </div>
-                 
-                 <div className="flex items-center gap-2">
-                   <label className="text-sm font-semibold text-slate-600">Exam Date:</label>
-                   <select 
-                     value={filterExamDate}
-                     onChange={(e) => setFilterExamDate(e.target.value)}
-                     className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold shadow-sm"
-                   >
-                     <option value="All">All Dates</option>
-                     {filterOptions.examDates.map(d => (
-                       <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
-                     ))}
-                   </select>
-                 </div>
-               </div>
-            )}
+                  {subject === 'Other' && (
+                    <input
+                      type="text"
+                      placeholder="Custom Subject"
+                      value={customSubject}
+                      onChange={(e) => { setCustomSubject(e.target.value); setHasSearched(false); }}
+                      className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs w-32"
+                    />
+                  )}
+
+                  <input
+                    type="text"
+                    placeholder="Syllabus"
+                    value={syllabusCoverage}
+                    onChange={(e) => { setSyllabusCoverage(e.target.value); setHasSearched(false); }}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs w-32"
+                  />
+
+                  <input
+                    type="date"
+                    value={examDate}
+                    onChange={(e) => { setExamDate(e.target.value); setHasSearched(false); }}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                  />
+                </>
+              )}
+
+              {activeTab === 'master' && allMarks.length > 0 && (
+                <>
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                  >
+                    <option value="All">All Categories</option>
+                    {filterOptions.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+
+                  <select
+                    value={filterExam}
+                    onChange={(e) => setFilterExam(e.target.value)}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                  >
+                    <option value="All">All Exams</option>
+                    {filterOptions.exams.map(e => <option key={e} value={e}>{e}</option>)}
+                  </select>
+
+                  <select
+                    value={filterSubject}
+                    onChange={(e) => setFilterSubject(e.target.value)}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                  >
+                    <option value="All">All Subjects</option>
+                    {filterOptions.subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+
+                  <select
+                    value={filterExamDate}
+                    onChange={(e) => setFilterExamDate(e.target.value)}
+                    className="bg-white border border-slate-200 text-slate-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 px-3 py-2 font-semibold shadow-xs"
+                  >
+                    <option value="All">All Dates</option>
+                    {filterOptions.examDates.map(d => <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>)}
+                  </select>
+                </>
+              )}
+
+              <button
+                onClick={loadStudentsAndMarks}
+                disabled={loading || !grade || !section}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-xl shadow-xs transition-all active:scale-95 disabled:opacity-50 text-sm"
+              >
+                {loading ? '...' : 'Load Sheet'}
+              </button>
+
+              {activeTab === 'single' && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    onClick={downloadTemplate}
+                    title="Download CSV Template"
+                    className="bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                  >
+                    Template
+                  </button>
+
+                  <label className="bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 cursor-pointer px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs transition-colors">
+                    Upload CSV
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={handleCSVUpload}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Feedback Message */}
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${
-            message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-          }`}>
+          <div className={`p-4 rounded-xl text-sm font-semibold border shadow-sm ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
             {message.text}
           </div>
         )}
@@ -886,7 +827,7 @@ export default function AcademicMarks() {
                 <h2 className="text-xl font-bold text-slate-800">{examName} <span className="text-slate-400 font-normal">({examCategory})</span> {examCategory !== 'Competitive' && `- ${subject === 'Other' ? customSubject : subject}`}</h2>
                 <p className="text-sm text-slate-500 mt-1">{grade} {section} {syllabusCoverage && `• Syllabus: ${syllabusCoverage}`}</p>
               </div>
-              
+
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   {examCategory === 'Competitive' ? (
@@ -899,8 +840,8 @@ export default function AcademicMarks() {
                   ) : (
                     <>
                       <label className="text-sm font-semibold text-slate-600">Max Score:</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={maxScore}
                         onChange={(e) => setMaxScore(e.target.value)}
                         className="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 w-20 font-bold text-center shadow-inner"
@@ -908,8 +849,8 @@ export default function AcademicMarks() {
                     </>
                   )}
                 </div>
-                
-                <button 
+
+                <button
                   onClick={handleSubmit}
                   disabled={saving}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
@@ -928,7 +869,7 @@ export default function AcademicMarks() {
                 </button>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -942,8 +883,8 @@ export default function AcademicMarks() {
                             <span>{sub} Score</span>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-slate-400">MAX:</span>
-                              <input 
-                                type="number" 
+                              <input
+                                type="number"
                                 value={maxScores[sub] !== undefined ? maxScores[sub] : '100'}
                                 onChange={(e) => handleMaxScoreChange(sub, e.target.value)}
                                 className="bg-white border border-slate-300 text-slate-800 text-xs rounded focus:ring-indigo-500 focus:border-indigo-500 p-1 w-16 text-center font-bold"
@@ -1014,9 +955,9 @@ export default function AcademicMarks() {
                 <h2 className="text-xl font-bold text-slate-800">Master Gradebook</h2>
                 <p className="text-sm text-slate-500 mt-1">{grade} {section}</p>
               </div>
-              
+
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => downloadCSV('filtered')}
                   className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
                   title="Export currently filtered view"
@@ -1024,7 +965,7 @@ export default function AcademicMarks() {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                   Export Filtered
                 </button>
-                <button 
+                <button
                   onClick={() => downloadCSV('all')}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
                   title="Export all marks for this class"
@@ -1034,7 +975,7 @@ export default function AcademicMarks() {
                 </button>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -1069,9 +1010,9 @@ export default function AcademicMarks() {
                         uniqueTests.map(test => {
                           const [cat, name, sub] = test.split(' | ');
                           // Use examCategory if present, otherwise default to "Custom" comparison
-                          const mark = allMarks.find(m => 
-                            m.studentId === student.id && 
-                            m.examName === name && 
+                          const mark = allMarks.find(m =>
+                            m.studentId === student.id &&
+                            m.examName === name &&
                             m.subject === sub &&
                             (m.examCategory || 'Custom') === cat
                           );
@@ -1090,10 +1031,10 @@ export default function AcademicMarks() {
                       ) : (
                         <td className="px-4 py-4 text-center border-r border-slate-200 text-slate-400 italic">N/A</td>
                       )}
-                      
+
                       {showMessagingButton && (
                         <td className="px-6 py-4 text-center sticky right-0 bg-white z-10 border-l border-slate-200">
-                          <button 
+                          <button
                             onClick={() => openMessagingModal(student.id)}
                             className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs font-bold rounded-lg transition-colors flex items-center justify-center mx-auto gap-1 shadow-sm"
                           >
@@ -1122,7 +1063,7 @@ export default function AcademicMarks() {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               {messagingStatus === 'success' ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center">
@@ -1135,26 +1076,26 @@ export default function AcademicMarks() {
               ) : (
                 <>
                   <p className="text-sm font-semibold text-slate-700">The message below has been auto-generated based on your current Master Gradebook filters. You can edit it before sending:</p>
-                  <textarea 
+                  <textarea
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     placeholder="Type your message here..."
                     rows={8}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 p-3 shadow-inner resize-y text-slate-800 font-medium"
                   ></textarea>
-                  
+
                   {messagingStatus === 'error' && (
                     <p className="text-red-500 text-sm font-semibold">Failed to send report. Try again.</p>
                   )}
-                  
+
                   <div className="flex justify-end gap-3 pt-2">
-                    <button 
+                    <button
                       onClick={() => setMessagingStudentId(null)}
                       className="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl transition-colors"
                     >
                       Cancel
                     </button>
-                    <button 
+                    <button
                       onClick={handleSendMessage}
                       disabled={messagingStatus === 'sending' || !messageText}
                       className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
