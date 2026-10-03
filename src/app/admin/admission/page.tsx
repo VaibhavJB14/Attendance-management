@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function formatClass(grade?: string, section?: string): string {
@@ -94,7 +94,7 @@ const STAFF_DOCUMENTS_LIST = [
   'Medical / Background Clearance Certificate',
 ];
 
-export default function AdmissionDashboard() {
+function AdmissionDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type');
@@ -143,8 +143,8 @@ export default function AdmissionDashboard() {
     parentPhone: '',
     parentEmail: '',
     // Assignment
-    grade: 'Year 1',
-    section: 'Sec A',
+    grade: '',
+    section: '',
     isHosteler: false,
     hostelName: 'Boys Hostel',
     roomNumber: '101',
@@ -364,8 +364,8 @@ export default function AdmissionDashboard() {
       parentBloodGroup: 'O+',
       parentPhone: '',
       parentEmail: '',
-      grade: targetType === 'STUDENT' ? 'Year 1' : 'Senior Teacher',
-      section: targetType === 'STUDENT' ? 'Sec A' : 'Academic Dept',
+      grade: targetType === 'STUDENT' ? '' : 'Senior Teacher',
+      section: targetType === 'STUDENT' ? '' : 'Academic Dept',
       isHosteler: false,
       hostelName: 'Boys Hostel',
       roomNumber: '101',
@@ -1088,12 +1088,13 @@ export default function AdmissionDashboard() {
                   {modalType === 'STUDENT' ? (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                       <div>
-                        <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 block mb-1">Assign Grade *</label>
+                        <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 block mb-1">Assign Grade</label>
                         <select
                           value={formData.grade}
                           onChange={e => setFormData({ ...formData, grade: e.target.value })}
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm"
                         >
+                          <option value="">Select Grade</option>
                           <option value="Year 1">Year 1</option>
                           <option value="Year 2">Year 2</option>
                           <option value="Year 3">Year 3</option>
@@ -1101,12 +1102,13 @@ export default function AdmissionDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 block mb-1">Assign Section *</label>
+                        <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 block mb-1">Assign Section</label>
                         <select
                           value={formData.section}
                           onChange={e => setFormData({ ...formData, section: e.target.value })}
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm"
                         >
+                          <option value="">Select Section</option>
                           <option value="Sec A">Sec A</option>
                           <option value="Sec B">Sec B</option>
                           <option value="Sec C">Sec C</option>
@@ -1518,5 +1520,13 @@ export default function AdmissionDashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdmissionDashboard() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-semibold flex items-center justify-center min-h-screen">Loading dashboard...</div>}>
+      <AdmissionDashboardContent />
+    </Suspense>
   );
 }

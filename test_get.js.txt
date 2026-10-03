@@ -1,0 +1,30 @@
+const { SignJWT } = require('jose');
+const crypto = require('crypto');
+async function test() {
+  const JWT_SECRET_KEY = process.env.JWT_SECRET || 'super-secure-secret-key-12345';
+  const key = new TextEncoder().encode(JWT_SECRET_KEY);
+  
+  const token = await new SignJWT({
+      id: 'admin-1',
+      email: 'admin@system.com',
+      role: 'SYSTEM_ADMIN',
+      tenantId: 'ad2f5bd8-cb6d-4416-8282-da82be35080c',
+      tenantName: 'Demo School',
+      plan: 'PREMIUM'
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(key);
+
+  console.log("Token:", token);
+  const res = await fetch('http://localhost:3000/api/question-papers?role=admin', {
+    headers: {
+      cookie: `auth_token=${token}`
+    }
+  });
+  const text = await res.text();
+  console.log("Status:", res.status);
+  console.log("Response:", text);
+}
+test();

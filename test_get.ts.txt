@@ -1,0 +1,7 @@
+import { GET } from './src/app/api/question-papers/route.ts';
+
+async function run() {
+  // We can't easily mock next/server context without a lot of setup
+  // Let's just create a next js script instead to test it
+}
+run();

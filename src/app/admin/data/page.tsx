@@ -36,7 +36,7 @@ export default function DataManagement() {
   const [session, setSession] = useState<UserSession | null>(null);
 
   // Form states
-  const [activeTab, setActiveTab] = useState<'assignMentor' | 'classTeacher' | 'addClass'>('assignMentor');
+  const [activeTab, setActiveTab] = useState<'assignMentor' | 'classTeacher' | 'addClass' | 'assignStudents'>('assignMentor');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -62,6 +62,14 @@ export default function DataManagement() {
   const [newGrade, setNewGrade] = useState('');
   const [newSection, setNewSection] = useState('');
   const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
+
+  // Assign Students to Class Form
+  const [unassignedStudents, setUnassignedStudents] = useState<any[]>([]);
+  const [assigningStudentId, setAssigningStudentId] = useState('');
+  const [sGrade, setSGrade] = useState('');
+  const [sSection, setSSection] = useState('');
+  const [sIsHosteler, setSIsHosteler] = useState(false);
+  const [sHostelName, setSHostelName] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('session');
@@ -109,6 +117,19 @@ export default function DataManagement() {
         .then(data => {
           if (data.assignments) {
             setAssignments(data.assignments);
+          }
+        })
+        .catch(err => console.error(err));
+    }
+
+    if (activeTab === 'assignStudents' && session) {
+      fetch('/api/students', {
+        headers: { 'x-tenant-id': session.tenantId }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.students) {
+            setUnassignedStudents(data.students.filter((s: any) => !s.grade || !s.section));
           }
         })
         .catch(err => console.error(err));
@@ -228,6 +249,45 @@ export default function DataManagement() {
     }
   };
 
+  const handleAssignStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session || !assigningStudentId) return;
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/students/${assigningStudentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': session.tenantId
+        },
+        body: JSON.stringify({
+          grade: sGrade,
+          section: sSection,
+          isHosteler: sIsHosteler,
+          hostelName: sIsHosteler ? sHostelName : null,
+          roomNumber: null
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign class to student');
+
+      setMessage({ type: 'success', text: `Class assigned to student successfully!` });
+      setAssigningStudentId(''); setSGrade(''); setSSection(''); setSIsHosteler(false); setSHostelName('');
+
+      // Refresh list
+      const fetchRes = await fetch('/api/students', { headers: { 'x-tenant-id': session.tenantId } });
+      const fetchData = await fetchRes.json();
+      if (fetchData.students) setUnassignedStudents(fetchData.students.filter((s: any) => !s.grade || !s.section));
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!session) return null;
 
   return (
@@ -260,6 +320,12 @@ export default function DataManagement() {
               className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'addClass' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
               Add Class
+            </button>
+            <button
+              onClick={() => { setActiveTab('assignStudents'); setMessage(null); }}
+              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'assignStudents' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              Assign Class to Students
             </button>
           </div>
 
@@ -480,6 +546,108 @@ export default function DataManagement() {
                       )) : (
                         <tr>
                           <td colSpan={2} className="px-6 py-8 text-center text-slate-400 italic">No classes added yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Assign Students Form */}
+          {activeTab === 'assignStudents' && (
+            <div className="space-y-8">
+              <form onSubmit={handleAssignStudentSubmit} className="space-y-5 bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                <h3 className="text-lg font-bold text-amber-900 mb-4">Assign Class to Unassigned Students</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Select Unassigned Student</label>
+                    <select required value={assigningStudentId} onChange={e => setAssigningStudentId(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                      <option value="" disabled>-- Select a student --</option>
+                      {unassignedStudents.map((student: any) => (
+                        <option key={student.id} value={student.id}>
+                          {student.firstName} {student.lastName} ({student.rollNumber || 'No Roll #'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Grade</label>
+                    <select required value={sGrade} onChange={e => setSGrade(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                      <option value="" disabled>-- Select Grade --</option>
+                      {uniqueGrades.length > 0 ? (
+                        uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)
+                      ) : (
+                        <>
+                          <option value="Year 1">Year 1</option>
+                          <option value="Year 2">Year 2</option>
+                          <option value="Year 3">Year 3</option>
+                          <option value="Year 4">Year 4</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Section</label>
+                    <select required value={sSection} onChange={e => setSSection(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                      <option value="" disabled>-- Select Section --</option>
+                      {getSectionsForGrade(sGrade).length > 0 ? (
+                        getSectionsForGrade(sGrade).map((s: any) => <option key={s} value={s}>{s}</option>)
+                      ) : (
+                        <>
+                          <option value="Sec A">Sec A</option>
+                          <option value="Sec B">Sec B</option>
+                          <option value="Sec C">Sec C</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 pt-2 border-t border-amber-200">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={sIsHosteler} onChange={e => setSIsHosteler(e.target.checked)} className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500" />
+                      <span className="text-sm font-semibold text-slate-700">Require Hostel Accommodation</span>
+                    </label>
+                  </div>
+                  {sIsHosteler && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Hostel Name</label>
+                      <select value={sHostelName} onChange={e => setSHostelName(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-amber-500 focus:border-amber-500">
+                        <option value="" disabled>-- Select Hostel --</option>
+                        <option value="Boys Hostel">Boys Hostel</option>
+                        <option value="Girls Hostel">Girls Hostel</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <button disabled={loading || unassignedStudents.length === 0} type="submit" className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 mt-4">
+                  {loading ? 'Processing...' : 'Assign Details to Student'}
+                </button>
+              </form>
+
+              {/* Unassigned Students Table */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Unassigned Students ({unassignedStudents.length})</h3>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+                        <th className="px-6 py-4">Name</th>
+                        <th className="px-6 py-4">Roll Number</th>
+                        <th className="px-6 py-4">Parent Phone</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {unassignedStudents.length > 0 ? unassignedStudents.map((student: any) => (
+                        <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4 font-semibold text-slate-800">{student.firstName} {student.lastName}</td>
+                          <td className="px-6 py-4 text-slate-500">{student.rollNumber || 'N/A'}</td>
+                          <td className="px-6 py-4 text-slate-500">{student.parentPhone || 'N/A'}</td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-8 text-center text-slate-400 italic">No unassigned students found.</td>
                         </tr>
                       )}
                     </tbody>
